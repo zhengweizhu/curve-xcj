@@ -25,12 +25,16 @@
 #include <sys/utsname.h>
 #include <linux/version.h>
 #include <dirent.h>
+#include <brpc/server.h>
 
 #include "src/common/string_util.h"
 #include "src/fs/ext4_filesystem_impl.h"
 #include "src/fs/wrap_posix.h"
 
 #define MIN_KERNEL_VERSION KERNEL_VERSION(3, 15, 0)
+
+static bvar::LatencyRecorder g_fs_write_latency(
+                                    "fs_write");
 
 namespace curve {
 namespace fs {
@@ -306,6 +310,9 @@ int Ext4FileSystemImpl::Write(int fd,
                               const char *buf,
                               uint64_t offset,
                               int length) {
+    butil::Timer timer;
+    timer.start();
+
     int remainLength = length;
     int relativeOffset = 0;
     int retryTimes = 0;
@@ -326,6 +333,8 @@ int Ext4FileSystemImpl::Write(int fd,
         offset += ret;
         relativeOffset += ret;
     }
+    timer.stop();
+    g_fs_write_latency << timer.u_elapsed();
     return length;
 }
 
