@@ -443,9 +443,11 @@ then
     exit
 fi
 cp ./bazel-bin/src/client/libcurve.so build/curve-sdk/usr/lib
+cp ./bazel-bin/src/client/libchunk.so build/curve-sdk/usr/lib
 cp include/client/libcurve.h build/curve-sdk/usr/include
 cp include/client/libcbd.h build/curve-sdk/usr/include
 cp include/client/libcurve_define.h build/curve-sdk/usr/include
+cp include/client/libchunk.h build/curve-sdk/usr/include
 if [ $? -ne 0 ]
 then
     exit
