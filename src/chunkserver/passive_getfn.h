@@ -26,7 +26,7 @@
 #include "src/chunkserver/trash.h"
 #include "src/chunkserver/copyset_node_manager.h"
 #include "src/chunkserver/datastore/file_pool.h"
-#include "src/chunkserver/raftlog/curve_segment_log_storage.h"
+// #include "src/chunkserver/raftlog/curve_segment_log_storage.h"
 
 namespace curve {
 namespace chunkserver {

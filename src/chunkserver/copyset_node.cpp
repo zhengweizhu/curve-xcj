@@ -47,6 +47,8 @@
 #include "src/common/crc32.h"
 #include "src/common/fs_util.h"
 
+#include "src/chunkserver/raftlog_v2/curve_raftlog.h"
+
 namespace curve {
 namespace chunkserver {
 
@@ -203,11 +205,12 @@ int CopysetNode::Init(const CopysetNodeOptions &options) {
         metric_->MonitorCurveSegmentLogStorage(logStorage);
     };
 
-    LogStorageOptions lsOptions(options.walFilePool, monitorMetricCb);
+    // LogStorageOptions lsOptions(options.walFilePool, monitorMetricCb);
 
     // In order to get more copysetNode's information in CurveSegmentLogStorage
     // without using global variables.
-    StoreOptForCurveSegmentLogStorage(lsOptions);
+    // StoreOptForCurveSegmentLogStorage(lsOptions);
+    raftlog_v2::CurveSegmentLogStorage::RegisterFilePool(options.walFilePool);
 
     syncTimerIntervalMs_ = options.syncTimerIntervalMs;
     checkSyncingIntervalMs_ = options.checkSyncingIntervalMs;

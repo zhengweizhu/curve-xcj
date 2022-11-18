@@ -37,7 +37,7 @@
 #include "src/chunkserver/conf_epoch_file.h"
 #include "src/chunkserver/config_info.h"
 #include "src/chunkserver/chunkserver_metrics.h"
-#include "src/chunkserver/raftlog/curve_segment_log_storage.h"
+// #include "src/chunkserver/raftlog/curve_segment_log_storage.h"
 #include "src/chunkserver/raftsnapshot/define.h"
 #include "src/chunkserver/raftsnapshot/curve_snapshot_writer.h"
 #include "src/common/string_util.h"

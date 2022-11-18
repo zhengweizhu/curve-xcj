@@ -29,7 +29,8 @@
 #include "src/chunkserver/copyset_node.h"
 #include "include/chunkserver/chunkserver_common.h"
 #include "src/chunkserver/uri_paser.h"
-#include "src/chunkserver/raftlog/define.h"
+// #include "src/chunkserver/raftlog/define.h"
+#include "src/chunkserver/raftlog_v2/curve_raftlog.h"
 
 using ::curve::chunkserver::RAFT_DATA_DIR;
 using ::curve::chunkserver::RAFT_META_DIR;
@@ -282,7 +283,15 @@ bool Trash::RecycleWAL(
     return true;
 }
 
+#define CURVE_SEGMENT_OPEN_PATTERN "curve_log_inprogress_%020" PRId64
+#define CURVE_SEGMENT_CLOSED_PATTERN "curve_log_%020" PRId64 "_%020" PRId64
+
 bool Trash::IsWALFile(const std::string &fileName) {
+    // FIXME(wuhanqing): xxx
+    if (raftlog_v2::CurveSegmentLogStorage::IsWALDataFile(fileName)) {
+        return true;
+    }
+
     int match = 0;
     int64_t first_index = 0;
     int64_t last_index = 0;

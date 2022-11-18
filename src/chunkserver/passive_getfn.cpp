@@ -59,13 +59,14 @@ uint32_t GetDatastoreChunkCountFunc(void* arg) {
 }
 
 uint32_t GetLogStorageWalSegmentCountFunc(void* arg) {
-    CurveSegmentLogStorage* logStorage
-        = reinterpret_cast<CurveSegmentLogStorage*>(arg);
-    uint32_t walSegmentCount = 0;
-    if (nullptr != logStorage) {
-        walSegmentCount = logStorage->GetStatus().walSegmentFileCount;
-    }
-    return walSegmentCount;
+    // CurveSegmentLogStorage* logStorage
+    //     = reinterpret_cast<CurveSegmentLogStorage*>(arg);
+    // uint32_t walSegmentCount = 0;
+    // if (nullptr != logStorage) {
+    //     walSegmentCount = logStorage->GetStatus().walSegmentFileCount;
+    // }
+    // return walSegmentCount;
+    return 0;
 }
 
 uint32_t GetDatastoreSnapshotCountFunc(void* arg) {

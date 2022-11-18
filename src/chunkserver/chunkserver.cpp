@@ -27,6 +27,8 @@
 #include <braft/raft_service.h>
 #include <braft/storage.h>
 
+#include "src/chunkserver/raftlog_v2/curve_raftlog.h"
+
 #include <memory>
 
 #include "src/chunkserver/chunkserver.h"
@@ -41,7 +43,7 @@
 #include "src/chunkserver/raftsnapshot/curve_snapshot_attachment.h"
 #include "src/chunkserver/raftsnapshot/curve_file_service.h"
 #include "src/chunkserver/raftsnapshot/curve_snapshot_storage.h"
-#include "src/chunkserver/raftlog/curve_segment_log_storage.h"
+// #include "src/chunkserver/raftlog/curve_segment_log_storage.h"
 #include "src/common/curve_version.h"
 
 using ::curve::fs::LocalFileSystem;
@@ -82,7 +84,8 @@ namespace chunkserver {
 int ChunkServer::Run(int argc, char** argv) {
     gflags::ParseCommandLineFlags(&argc, &argv, true);
 
-    RegisterCurveSegmentLogStorageOrDie();
+    // RegisterCurveSegmentLogStorageOrDie();
+    raftlog_v2::RegisterCurveSegmentLogStorageV2OrDie();
 
     // ==========================加载配置项===============================//
     LOG(INFO) << "Loading Configuration.";
