@@ -1,8 +1,6 @@
 build --define=with_glog=true --define=libunwind=true
 build --copt -DHAVE_ZLIB=1 --copt -DGFLAGS_NS=google --copt -DUSE_BTHREAD_MUTEX
 build --cxxopt -Wno-error=format-security
-build --copt -fdiagnostics-color
-build --cxxopt -faligned-new
-
-build:asan --linkopt -fsanitize=address --copt -fno-omit-frame-pointer --copt -g --copt -fno-common
+build:gcc7-later --cxxopt -faligned-new
+build --incompatible_blacklisted_protos_requires_proto_info=false
 

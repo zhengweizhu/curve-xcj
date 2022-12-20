@@ -27,6 +27,8 @@
 #include <braft/raft_service.h>
 #include <braft/storage.h>
 
+#include <uct/api/uct.h>
+
 #include <memory>
 
 #include "src/chunkserver/chunkserver.h"
@@ -203,6 +205,9 @@ int ChunkServer::Run(int argc, char** argv) {
 
         butil::iobuf::set_blockmem_allocate_and_deallocate(
             dpdk_mem_allocate, dpdk_mem_free);
+
+        uct_set_user_mem_func(dpdk_for_uct_alloc, dpdk_for_uct_free);
+
         // start pfsdaemon
         LOG_IF(FATAL, 0 != pfsd_start(true))
             << "start pfsd failed";

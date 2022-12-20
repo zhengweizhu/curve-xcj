@@ -97,8 +97,12 @@ ssize_t preadv_dispatch(int fd, const struct iovec *vector,
 ssize_t pwritev_dispatch(int fd, const struct iovec *vector,
                          int nvec, off_t offset) {
     if (PFS_FD_ISVALID(fd)) {
-        // TODO(xuchaojie): use pfs_pwritev_dma in future
-        int ret = pfs_pwritev(fd, vector, nvec, offset);
+        int ret = pfs_pwritev_dma(fd, vector, nvec, offset);
+        DLOG(INFO) << "pwritev_dispatch, ret: " << ret
+                   << ", fd: " << fd
+                   << ", nvec: " << nvec
+                   << ", offset: " << offset
+                   << ", iovec: " << DumpIOVec(vector, nvec);
         if (ret < 0) {
             LOG(ERROR) << "pwritev_dispatch failed, ret: " << ret
                        << ", fd: " << fd
@@ -145,8 +149,11 @@ ssize_t readv_dispatch(int fd, const struct iovec *vector, int nvec) {
  */
 ssize_t writev_dispatch(int fd, const struct iovec *vector, int nvec) {
     if (PFS_FD_ISVALID(fd)) {
-        // TODO(xuchaojie): use pfs_writev_dma in future
-        int ret = pfs_writev(fd, vector, nvec);
+        int ret = pfs_writev_dma(fd, vector, nvec);
+        DLOG(INFO) << "pwritev_dispatch, ret: " << ret
+                   << ", fd: " << fd
+                   << ", nvec: " << nvec
+                   << ", iovec: " << DumpIOVec(vector, nvec);
         if (ret < 0) {
             LOG(ERROR) << "pwritev_dispatch failed, ret: " << ret
                        << ", fd: " << fd
@@ -249,6 +256,9 @@ int PfsFileSystemImpl::Delete(const string& path) {
     }
     rc = pfs_unlink(path.c_str());
     if (rc < 0) {
+        if (EISDIR == errno) {
+            return 0;
+        }
         LOG(WARNING) << "pfs_unlink failed: " << strerror(errno)
                      << ", path: " << path;
         return -errno;

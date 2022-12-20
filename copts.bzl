@@ -78,6 +78,7 @@ CURVE_GCC_DISABLED_FLGAS = [
     "-Wno-error=unused-variable",
     "-Wno-error=deprecated-declarations",
     "-Wno-error=narrowing",
+    "-Wno-error=implicit-fallthrough",
 ]
 
 # FIXME: temporary disabled because triggered in many places
@@ -198,6 +199,8 @@ SPDK_LINK_OPTS = [
     "-lspdk_vmd",
     "-lspdk_event_sock",
     "-lspdk_init",
+    "-lspdk_vfio_user",
+    "-lspdk_event_iobuf",
     "-lspdk_thread",
     "-lspdk_trace",
     "-lspdk_sock",

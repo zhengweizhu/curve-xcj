@@ -122,6 +122,21 @@ void* dpdk_mem_allocate(size_t align, size_t sz) {
     return rte_malloc("iobuf", sz, align);
 }
 
-void dpdk_mem_free(void* p) {
+void dpdk_mem_free(void* p, size_t sz) {
     rte_free(p);
 }
+
+int dpdk_for_uct_alloc(void **address, size_t align,
+                       size_t length, const char *name) {
+    *address = rte_malloc(name, length, align);
+    if (NULL == *address) {
+        LOG(ERROR) << "rte_malloc return NULL!";
+    }
+    return 0;
+}
+
+int dpdk_for_uct_free(void *address, size_t length) {
+    rte_free(address);
+    return 0;
+}
+

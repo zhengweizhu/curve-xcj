@@ -14,7 +14,7 @@
 #  limitations under the License.
 #
 
-load("//:copts.bzl", "CURVE_DEFAULT_COPTS")
+load("//:copts.bzl", "CURVE_DEFAULT_COPTS", "SPDK_COPTS")
 
 cc_library(
     name = "chunkserver-raft-log",
@@ -24,7 +24,10 @@ cc_library(
     hdrs = glob([
         "*.h",
     ]),
-    copts = CURVE_DEFAULT_COPTS,
+    copts = CURVE_DEFAULT_COPTS + select({
+        "//:with_spdk": SPDK_COPTS,
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
     deps = [
         "//external:braft",

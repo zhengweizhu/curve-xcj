@@ -342,6 +342,23 @@ int CurveSegment::_load_entry(off_t offset, EntryHeader* head,
         *head = tmp;
     }
     if (data != NULL) {
+#ifdef WITH_SPDK
+        if (buf.length() < kEntryHeaderSize + data_len) {
+            const size_t to_read = kEntryHeaderSize + data_len
+                                                    - buf.length();
+            const ssize_t n = _lfs->Read(_fd, &buf,
+                                    offset + buf.length(), to_read);
+            if (n != (ssize_t)to_read) {
+                return n < 0 ? -1 : 1;
+            }
+        } else if (buf.length() > kEntryHeaderSize + data_len) {
+            buf.pop_back(buf.length() - kEntryHeaderSize - data_len);
+        }
+        CHECK_EQ(buf.length(), kEntryHeaderSize + data_len);
+        // remove zero bytes & header
+        size_t  zero_bytes_num = data_len - data_real_len;
+        buf.pop_front(zero_bytes_num + kEntryHeaderSize);
+#else
         if (buf.length() < kEntryHeaderSize + data_real_len) {
             const size_t to_read = kEntryHeaderSize + data_real_len
                                                     - buf.length();
@@ -355,6 +372,7 @@ int CurveSegment::_load_entry(off_t offset, EntryHeader* head,
         }
         CHECK_EQ(buf.length(), kEntryHeaderSize + data_real_len);
         buf.pop_front(kEntryHeaderSize);
+#endif
         if (!verify_checksum(tmp.checksum_type, buf, tmp.data_checksum)) {
             LOG(ERROR) << "Found corrupted data at offset="
                        << offset + kEntryHeaderSize
@@ -405,11 +423,68 @@ int CurveSegment::append(const braft::LogEntry* entry) {
     uint32_t zero_bytes_num = 0;
     // 4KB alignment
     if (to_write % FLAGS_walAlignSize != 0) {
-        zero_bytes_num = (to_write / FLAGS_walAlignSize + 1) *
-                                        FLAGS_walAlignSize - to_write;
+        zero_bytes_num = ((to_write + FLAGS_walAlignSize - 1) &
+                          (~(FLAGS_walAlignSize - 1))) - to_write;
     }
+    to_write += zero_bytes_num;
+
+#ifdef WITH_SPDK
+    uint32_t metaSize, metaSizeEncode;
+    data.cutn(&metaSizeEncode, sizeof(uint32_t));
+    uint32_t metaPaddingEncode;
+    data.cutn(&metaPaddingEncode, sizeof(uint32_t));
+
+    metaSize = butil::NetToHost32(metaSizeEncode);
+    butil::IOBuf meta;
+    data.cutn(&meta, metaSize);
+
+    butil::IOBuf firstPage;
+    data.cut_until_page_end(&firstPage);
+
+    char* write_buf = new char[kEntryHeaderSize];
+
+    const uint32_t meta_field = (entry->type << 24) | (_checksum_type << 16);
+    butil::RawPacker packer(write_buf);
+    packer.pack64(entry->id.term)
+          .pack32(meta_field)
+          .pack32(real_length + zero_bytes_num)
+          .pack32(real_length)
+          .pack32(data_check_sum);
+    packer.pack32(get_checksum(
+                  _checksum_type, write_buf, kEntryHeaderSize - 4));
+
+    butil::IOBuf header;
+    header.append(write_buf, kEntryHeaderSize);
+    delete write_buf;
+
+    butil::IOBuf padding;
+    padding.resize(zero_bytes_num);
+    header.append(padding);
+
+    header.append(&metaSizeEncode, sizeof(uint32_t));
+    header.append(&metaPaddingEncode, sizeof(uint32_t));
+    header.append(meta);
+
+    header.append(firstPage);
+
+    butil::IOPortal buffer;
+    buffer.append_aligned_to_page_end(&header);
+    buffer.append(data);
+
+    DLOG(INFO) << "write log, total size: " << buffer.size()
+              << ", header size: " << header.size()
+              << ", kEntryHeaderSize: " << kEntryHeaderSize
+              << ", zero_bytes_num: " << zero_bytes_num
+              << ", metaSize: " << metaSize
+              << ", firstPageSize: " << firstPage.size()
+              << ", data left Size: " << data.size();
+    int ret = _lfs->Write(_fd, buffer, _meta.bytes, to_write);
+    if (ret != to_write) {
+        LOG(ERROR) << "Fail to write to fd=" << _fd;
+        return -1;
+    }
+#else
     data.resize(data.length() + zero_bytes_num);
-    to_write = kEntryHeaderSize + data.length();
     CHECK_LE(data.length(), 1ul << 56ul);
     char* write_buf = nullptr;
     if (FLAGS_enableWalDirectWrite) {
@@ -458,6 +533,7 @@ int CurveSegment::append(const braft::LogEntry* entry) {
                     ++start) {}
         }
     }
+#endif
     {
         BAIDU_SCOPED_LOCK(_mutex);
         _offset_and_term.push_back(std::make_pair(_meta.bytes, entry->id.term));

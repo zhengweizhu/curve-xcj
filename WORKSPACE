@@ -93,7 +93,7 @@ bind(
 # brpc内BUILD文件在依赖glog时, 直接指定的依赖是"@com_github_google_glog//:glog"
 git_repository(
     name = "com_github_google_glog",
-    remote = "https://gitee.com/mirrors/glog",
+    remote = "https://github.com/google/glog",
     commit = "4cc89c9e2b452db579397887c37f302fb28f6ca1",
     patch_args = ["-p1"],
     patches = ["//:thirdparties/glog/glog.patch"],
@@ -108,10 +108,7 @@ bind(
 http_archive(
     name = "com_github_gflags_gflags",
     strip_prefix = "gflags-2.2.2",
-    urls = [
-        "https://curve-build.nos-eastchina1.126.net/gflags-2.2.2.tar.gz",
-        "https://github.com/gflags/gflags/archive/v2.2.2.tar.gz",
-    ],
+    urls = ["https://github.com/gflags/gflags/archive/v2.2.2.tar.gz"],
 )
 
 bind(
@@ -123,7 +120,7 @@ http_archive(
     name = "com_github_google_leveldb",
     build_file = "@com_github_apache_brpc//:leveldb.BUILD",
     strip_prefix = "leveldb-a53934a3ae1244679f812d998a4f16f2c7f309a6",
-    url = "https://curve-build.nos-eastchina1.126.net/leveldb-a53934a3ae1244679f812d998a4f16f2c7f309a6.tar.gz",
+    urls = ["https://github.com/google/leveldb/archive/a53934a3ae1244679f812d998a4f16f2c7f309a6.tar.gz"],
 )
 
 bind(
@@ -134,7 +131,7 @@ bind(
 # git_repository(
 local_repository(
     name = "com_github_apache_brpc",
-    # remote = "https://github.com/opencurve/incubator-brpc",
+    # remote = "https://gitee.com/NetEase_Curve/incubator-brpc",
     # commit = "89ed709f71b2bab1ab4176609f28fc891222c508",
     path = "/home/xuchaojie/work/incubator-brpc",
 )
@@ -286,7 +283,19 @@ bind(
 
 new_local_repository(
     name = "ucx",
-    path = "/home/wuhanqing/ucx",
-    build_file = "//:bazel/ucx.BUILD",
+    path = "/usr/local/ucx",
+    build_file_content = """
+package(default_visibility = ["//visibility:public"])
+cc_library(
+    name = "headers",
+    hdrs = glob(["include/**/**/*.h"]),
+    includes = ['include'],
+)
+"""
+)
+
+bind(
+    name = "ucx_headers",
+    actual = "@ucx//:headers",
 )
 

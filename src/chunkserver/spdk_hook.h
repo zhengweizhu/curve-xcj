@@ -43,6 +43,11 @@ ssize_t glog_dpdk_log_func(void *cookie, const char *buf, size_t size);
 
 void* dpdk_mem_allocate(size_t align, size_t sz);
 
-void dpdk_mem_free(void* p);
+void dpdk_mem_free(void* p, size_t sz);
+
+int dpdk_for_uct_alloc(void **address, size_t align,
+                       size_t length, const char *name);
+
+int dpdk_for_uct_free(void *address, size_t length);
 
 #endif  // SRC_CHUNKSERVER_SPDK_HOOK_H_

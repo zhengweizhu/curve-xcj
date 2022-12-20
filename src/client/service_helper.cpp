@@ -421,8 +421,9 @@ int ServiceHelper::CheckChunkServerHealth(
     options.protocol = brpc::PROTOCOL_HTTP;
 
     // FIXME: xxx
-
-    std::string ipPort = butil::endpoint2str(endPoint).c_str();
+    butil::EndPoint ep2 = endPoint;
+    ep2.port += 1000;
+    std::string ipPort = butil::endpoint2str(ep2).c_str();
     int res = httpChannel.Init(ipPort.c_str(), &options);
     if (res != 0) {
         LOG(WARNING) << "init http channel failed, address = " << ipPort;
