@@ -209,7 +209,7 @@ struct PeerAddr {
     int Parse(const std::string &str) {
         int idx;
         char ip_str[64];
-        if (2 > sscanf(str.c_str(), "%[^:]%*[:]%d%*[:]%d", ip_str, &addr_.port,
+        if (2 > sscanf(str.c_str(), "%[^:]%*[:]%hu%*[:]%d", ip_str, &addr_.port,
                        &idx)) {
             Reset();
             return -1;

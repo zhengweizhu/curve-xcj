@@ -1016,8 +1016,11 @@ bool TopologyServiceManager::CreateCopysetNodeOnChunkServer(
     std::string ip = chunkServer.GetHostIp();
     int port = chunkServer.GetPort();
 
+    // FIXME: xxx
     brpc::Channel channel;
-    if (channel.Init(ip.c_str(), port, NULL) != 0) {
+    brpc::ChannelOptions opts;
+    opts.use_ucp = true;
+    if (channel.Init(ip.c_str(), port, &opts) != 0) {
         LOG(ERROR) << "Fail to init channel to ip: "
                    << ip
                    << " port "

@@ -415,16 +415,16 @@ void ReadChunkRequest::ReadChunk() {
                    << " copyset id: " << request_->copysetid()
                    << " chunkid: " << request_->chunkid()
                    << " data size: " << request_->size()
-                   << " read len :" << size
-                   << " data store return: " << ret;
+                   << " read len :" << size << " data store return: " << ret
+                   << ", request: " << request_->DebugString();
     } else {
         LOG(ERROR) << "read failed: "
                    << " logic pool id: " << request_->logicpoolid()
                    << " copyset id: " << request_->copysetid()
                    << " chunkid: " << request_->chunkid()
                    << " data size: " << request_->size()
-                   << " read len :" << size
-                   << " data store return: " << ret;
+                   << " read len :" << size << " data store return: " << ret
+                   << ", request: " << request_->DebugString();
         response_->set_status(
             CHUNK_OP_STATUS::CHUNK_OP_STATUS_FAILURE_UNKNOWN);
     }

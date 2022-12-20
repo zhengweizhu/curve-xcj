@@ -101,9 +101,14 @@ DEFINE_string(spdk_nvme_controller,
 
 const char* kProtocalCurve = "curve";
 
+namespace braft {
+DECLARE_bool(use_ucp);
+}
+
 namespace curve {
 namespace chunkserver {
 
+DEFINE_bool(enable_ucp, true, "xxx");
 
 int ChunkServer::Run(int argc, char** argv) {
     gflags::ParseCommandLineFlags(&argc, &argv, true);
@@ -145,6 +150,8 @@ int ChunkServer::Run(int argc, char** argv) {
     // 打印参数
     conf.PrintConfig();
     curve::common::ExposeCurveVersion();
+
+    braft::FLAGS_use_ucp = FLAGS_enable_ucp;
 
     // ============================初始化各模块==========================//
     LOG(INFO) << "Initializing ChunkServer modules";
@@ -351,7 +358,14 @@ int ChunkServer::Run(int argc, char** argv) {
         LOG(FATAL) << "Invalid server IP provided: " << copysetNodeOptions.ip;
         return -1;
     }
+
+    // FIXME: xxx
+    // 还是监听这个端口，如果是enable_ucp，则用下一个端口
     butil::EndPoint endPoint = butil::EndPoint(ip, copysetNodeOptions.port);
+    if (FLAGS_enable_ucp) {
+        endPoint.set_ucp();
+    }
+
     // 注册curve snapshot storage
     RegisterCurveSnapshotStorageOrDie();
     CurveSnapshotStorage::set_server_addr(endPoint);
@@ -391,7 +405,12 @@ int ChunkServer::Run(int argc, char** argv) {
     brpc::Server server;
     brpc::Server externalServer;
     // We need call braft::add_service to add endPoint to braft::NodeManager
-    braft::add_service(&server, endPoint);
+    LOG(INFO) << "Add braft related service at: "
+              << butil::endpoint2str(endPoint)
+              << ", use_ucp: " << endPoint.is_ucp();
+    auto copy = endPoint;
+    copy.set_tcp();
+    braft::add_service(&server, copy);
 
     // copyset service
     CopysetServiceImpl copysetService(copysetNodeManager_);
@@ -458,7 +477,26 @@ int ChunkServer::Run(int argc, char** argv) {
     // 启动rpc service
     LOG(INFO) << "Internal server is going to serve on: "
               << copysetNodeOptions.ip << ":" << copysetNodeOptions.port;
-    if (server.Start(endPoint, NULL) != 0) {
+
+    brpc::ServerOptions svr_opts;
+    const auto listening = [&svr_opts, &copysetNodeOptions,
+                            endPoint]() mutable {
+        if (FLAGS_enable_ucp) {
+            svr_opts.enable_ucp = true;
+            svr_opts.ucp_address = butil::ip2str(endPoint.ip).c_str();
+            svr_opts.ucp_port = endPoint.port;
+            
+            copysetNodeOptions.ip = svr_opts.ucp_address;
+            copysetNodeOptions.port = svr_opts.ucp_port;
+
+            endPoint.port += 1000;
+            return endPoint;
+        }
+
+        return endPoint;
+    }();
+
+    if (server.Start(listening, &svr_opts) != 0) {
         LOG(ERROR) << "Fail to start Internal Server";
         return -1;
     }

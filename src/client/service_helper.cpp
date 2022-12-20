@@ -216,7 +216,10 @@ class GetLeaderProxy : public std::enable_shared_from_this<GetLeaderProxy> {
             std::lock_guard<bthread::Mutex> lk(mtx_);
             for (const auto& ipPort : peerAddresses) {
                 std::unique_ptr<brpc::Channel> channel(new brpc::Channel());
-                int ret = channel->Init(ipPort.c_str(), nullptr);
+                // FIXME: ditto
+                brpc::ChannelOptions opts;
+                opts.use_ucp = true;
+                int ret = channel->Init(ipPort.c_str(), &opts);
                 if (ret != 0) {
                     LOG(WARNING)
                         << "GetLeader init channel to " << ipPort << " failed, "
@@ -416,6 +419,8 @@ int ServiceHelper::CheckChunkServerHealth(
     brpc::Channel httpChannel;
     brpc::ChannelOptions options;
     options.protocol = brpc::PROTOCOL_HTTP;
+
+    // FIXME: xxx
 
     std::string ipPort = butil::endpoint2str(endPoint).c_str();
     int res = httpChannel.Init(ipPort.c_str(), &options);

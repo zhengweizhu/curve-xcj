@@ -83,7 +83,7 @@ int FilePoolHelper::PersistEnCodeMetaInfo(
         return -1;
     }
 
-    LOG(INFO) << root.toStyledString().c_str();
+    LOG(INFO) << root.toStyledString() << " to " << persistPath;
 
     char* writeBuffer = new char[kPersistSize];
     memset(writeBuffer, 0, kPersistSize);

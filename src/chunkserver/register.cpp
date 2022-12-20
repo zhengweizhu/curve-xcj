@@ -88,11 +88,13 @@ int Register::RegisterToMDS(const ChunkServerMetadata *localMetadata,
     int retries = ops_.registerRetries;
     while (retries >= 0) {
         brpc::Channel channel;
+        brpc::ChannelOptions opts;
+        opts.use_ucp = true;
         brpc::Controller cntl;
 
         cntl.set_timeout_ms(ops_.registerTimeout);
 
-        if (channel.Init(mdsEps_[inServiceIndex_].c_str(), NULL) != 0) {
+        if (channel.Init(mdsEps_[inServiceIndex_].c_str(), &opts) != 0) {
             LOG(ERROR) << ops_.chunkserverInternalIp << ":"
                        << ops_.chunkserverPort
                        << " Fail to init channel to MDS "

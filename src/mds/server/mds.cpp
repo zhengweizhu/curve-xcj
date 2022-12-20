@@ -36,6 +36,8 @@ namespace mds {
 using LRUCache = ::curve::common::LRUCache<std::string, std::string>;
 using CacheMetrics = ::curve::common::CacheMetrics;
 
+DEFINE_bool(enable_ucp, true, "xxx");
+
 MDS::~MDS() {
     if (etcdEndpoints_) {
         delete etcdEndpoints_;
@@ -227,9 +229,25 @@ void MDS::StartServer() {
 
     // start rpc server
     brpc::ServerOptions option;
-    option.idle_timeout_sec = -1;
-    LOG_IF(FATAL, server.Start(options_.mdsListenAddr.c_str(), &option) != 0)
-        << "start brpc server error";
+    const butil::EndPoint listening = [&option, this]() {
+        butil::EndPoint ep;
+        CHECK(0 == butil::str2endpoint(options_.mdsListenAddr.c_str(), &ep));
+
+        if (FLAGS_enable_ucp) {
+            option.enable_ucp = true;
+            option.ucp_address = butil::ip2str(ep.ip).c_str();
+            option.ucp_port = ep.port;
+            
+            // let mds listening on another port
+            ep.port += 10;
+            return ep;   
+        }
+
+        return ep;
+    }();
+
+    LOG_IF(FATAL, server.Start(listening, &option) != 0)
+            << "start brpc server error";
     running_ = true;
 
     // To achieve the graceful exit of SIGTERM, you need to specify parameters

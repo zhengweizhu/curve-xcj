@@ -436,6 +436,7 @@ message CopySetServerInfo {
 message GetChunkServerListInCopySetsResponse {
     required sint32 statusCode = 1;
     repeated CopySetServerInfo csInfo = 2;
+    optional bool ucpConnection = 3;
 }
 
 message GetCopySetsInChunkServerRequest {

@@ -119,7 +119,9 @@ bool HeartbeatHelper::ChunkServerLoadCopySetFin(const std::string peerId) {
     const char *ip = butil::ip2str(peer.addr.ip).c_str();
     int port = peer.addr.port;
     brpc::Channel channel;
-    if (channel.Init(ip, port, NULL) != 0) {
+    brpc::ChannelOptions opts;
+    opts.use_ucp = true;
+    if (channel.Init(ip, port, &opts) != 0) {
         LOG(ERROR) << "Fail to init channel to ip:" << ip << " port:" << port;
         return false;
     }

@@ -32,6 +32,15 @@ using curve::chunkserver::CHUNK_OP_STATUS;
 namespace curve {
 namespace client {
 
+namespace {
+const auto ucp_channel_option = []() {
+    brpc::ChannelOptions opts;
+    opts.use_ucp = true;
+
+    return opts;
+}();
+}
+
 int ChunkServerClient::UpdateFileEpoch(
     const CopysetPeerInfo<ChunkServerID> &cs, uint64_t fileId, uint64_t epoch,
     ChunkServerClientClosure *done) {
@@ -40,7 +49,9 @@ int ChunkServerClient::UpdateFileEpoch(
 
     int ret = 0;
     if (!cs.externalAddr.IsEmpty()) {
-        ret = ctx->channel.Init(cs.externalAddr.addr_, NULL);
+        auto ep = cs.externalAddr.addr_;
+        ep.set_ucp();
+        ret = ctx->channel.Init(ep, &ucp_channel_option);
         if (ret != 0) {
             LOG(ERROR) << "failed to init channel to chunkserver, "
                        << "id: " << cs.peerID
@@ -49,7 +60,9 @@ int ChunkServerClient::UpdateFileEpoch(
             return -LIBCURVE_ERROR::INTERNAL_ERROR;
         }
     } else {
-        ret = ctx->channel.Init(cs.internalAddr.addr_, NULL);
+        auto ep = cs.internalAddr.addr_;
+        ep.set_ucp();
+        ret = ctx->channel.Init(ep, &ucp_channel_option);
         if (ret != 0) {
             LOG(ERROR) << "failed to init channel to chunkserver, "
                        << "id: " << cs.peerID

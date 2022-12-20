@@ -23,25 +23,24 @@
 #ifndef TOOLS_CURVEFSTOOL_H_
 #define TOOLS_CURVEFSTOOL_H_
 
+#include <brpc/channel.h>
+#include <brpc/server.h>
+#include <butil/endpoint.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
-#include <brpc/server.h>
-#include <brpc/channel.h>
-#include <butil/endpoint.h>
 #include <json/json.h>
 
 #include <fstream>
-#include <string>
-#include <vector>
+#include <list>
 #include <map>
 #include <set>
-#include <list>
+#include <string>
+#include <vector>
 
 #include "proto/topology.pb.h"
-#include "src/mds/common/mds_define.h"
-#include "src/common/string_util.h"
 #include "src/common/configuration.h"
-
+#include "src/common/string_util.h"
+#include "src/mds/common/mds_define.h"
 
 namespace curve {
 namespace mds {
@@ -90,9 +89,7 @@ class CurvefsTools {
     int SetChunkServer();
     int SetLogicalPool();
 
-    int GetMaxTry() {
-        return mdsAddressStr_.size();
-    }
+    int GetMaxTry() { return mdsAddressStr_.size(); }
 
     int TryAnotherMdsAddress();
 
@@ -114,17 +111,15 @@ class CurvefsTools {
 
     int DealFailedRet(int ret, std::string operation);
 
-    int ListPhysicalPool(
-        std::list<PhysicalPoolInfo> *physicalPoolInfos);
+    int ListPhysicalPool(std::list<PhysicalPoolInfo>* physicalPoolInfos);
 
     int ListLogicalPool(const std::string& phyPoolName,
-        std::list<LogicalPoolInfo> *logicalPoolInfos);
+                        std::list<LogicalPoolInfo>* logicalPoolInfos);
 
-    int AddListPoolZone(PoolIdType poolid,
-        std::list<ZoneInfo> *zoneInfos);
+    int AddListPoolZone(PoolIdType poolid, std::list<ZoneInfo>* zoneInfos);
 
     int AddListZoneServer(ZoneIdType zoneid,
-        std::list<ServerInfo> *serverInfos);
+                          std::list<ServerInfo>* serverInfos);
 
  private:
     std::list<CurveServerData> serverDatas;

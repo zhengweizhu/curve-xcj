@@ -31,10 +31,12 @@ http_archive(
 load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
 bazel_skylib_workspace()
 
-git_repository(
+# git_repository(
+local_repository(
     name = "com_github_baidu_braft",
-    remote = "https://github.com/baidu/braft",
-    commit = "e255c0e4b18d1a8a5d484d4b647f41ff1385ef1e",
+    # remote = "https://gitee.com/baidu/braft",
+    # commit = "e255c0e4b18d1a8a5d484d4b647f41ff1385ef1e",
+    path = "/home/xuchaojie/work/braft",
 )
 
 bind(
@@ -91,7 +93,7 @@ bind(
 # brpc内BUILD文件在依赖glog时, 直接指定的依赖是"@com_github_google_glog//:glog"
 git_repository(
     name = "com_github_google_glog",
-    remote = "https://github.com/google/glog",
+    remote = "https://gitee.com/mirrors/glog",
     commit = "4cc89c9e2b452db579397887c37f302fb28f6ca1",
     patch_args = ["-p1"],
     patches = ["//:thirdparties/glog/glog.patch"],
@@ -106,7 +108,10 @@ bind(
 http_archive(
     name = "com_github_gflags_gflags",
     strip_prefix = "gflags-2.2.2",
-    urls = ["https://github.com/gflags/gflags/archive/v2.2.2.tar.gz"],
+    urls = [
+        "https://curve-build.nos-eastchina1.126.net/gflags-2.2.2.tar.gz",
+        "https://github.com/gflags/gflags/archive/v2.2.2.tar.gz",
+    ],
 )
 
 bind(
@@ -118,7 +123,7 @@ http_archive(
     name = "com_github_google_leveldb",
     build_file = "@com_github_apache_brpc//:leveldb.BUILD",
     strip_prefix = "leveldb-a53934a3ae1244679f812d998a4f16f2c7f309a6",
-    urls = ["https://github.com/google/leveldb/archive/a53934a3ae1244679f812d998a4f16f2c7f309a6.tar.gz"],
+    url = "https://curve-build.nos-eastchina1.126.net/leveldb-a53934a3ae1244679f812d998a4f16f2c7f309a6.tar.gz",
 )
 
 bind(
@@ -126,10 +131,12 @@ bind(
     actual = "@com_github_google_leveldb//:leveldb",
 )
 
-git_repository(
+# git_repository(
+local_repository(
     name = "com_github_apache_brpc",
-    remote = "https://github.com/opencurve/incubator-brpc",
-    commit = "89ed709f71b2bab1ab4176609f28fc891222c508",
+    # remote = "https://github.com/opencurve/incubator-brpc",
+    # commit = "89ed709f71b2bab1ab4176609f28fc891222c508",
+    path = "/home/xuchaojie/work/incubator-brpc",
 )
 
 bind(
@@ -275,5 +282,11 @@ cc_library(
 bind(
     name = "spdk_headers",
     actual = "@spdk//:headers",
+)
+
+new_local_repository(
+    name = "ucx",
+    path = "/home/wuhanqing/ucx",
+    build_file = "//:bazel/ucx.BUILD",
 )
 

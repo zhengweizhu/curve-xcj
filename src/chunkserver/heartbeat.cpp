@@ -369,7 +369,9 @@ void Heartbeat::DumpHeartbeatResponse(const HeartbeatResponse& response) {
 int Heartbeat::SendHeartbeat(const HeartbeatRequest& request,
                              HeartbeatResponse* response) {
     brpc::Channel channel;
-    if (channel.Init(mdsEps_[inServiceIndex_].c_str(), NULL) != 0) {
+    brpc::ChannelOptions opts;
+    opts.use_ucp = true;
+    if (channel.Init(mdsEps_[inServiceIndex_].c_str(), &opts) != 0) {
         LOG(ERROR) << csEp_.ip << ":" << csEp_.port
                    << " Fail to init channel to MDS "
                    << mdsEps_[inServiceIndex_];
