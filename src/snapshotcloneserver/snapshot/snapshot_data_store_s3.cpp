@@ -32,15 +32,23 @@ namespace snapshotcloneserver {
 
 // nos conf
 int S3SnapshotDataStore::Init(const std::string &path) {
+    if (path.empty())
+        return 0;
+
     // Init server conf
     s3Adapter4Meta_->Init(path);
     s3Adapter4Data_->Init(path);
+    enabled_ = true;
     // create bucket if not exist
     if (!s3Adapter4Meta_->BucketExist()) {
         return s3Adapter4Meta_->CreateBucket();
     } else {
         return 0;
     }
+}
+
+bool S3SnapshotDataStore::Enabled() const {
+    return enabled_;
 }
 
 int S3SnapshotDataStore::PutChunkIndexData(const ChunkIndexDataName &name,
@@ -77,6 +85,10 @@ int S3SnapshotDataStore::GetChunkIndexData(const ChunkIndexDataName &name,
     return -1;
 }
 bool S3SnapshotDataStore::ChunkIndexDataExist(const ChunkIndexDataName &name) {
+    if (!Enabled()) {
+        return false;
+    }
+
     std::string key = name.ToIndexDataChunkKey();
     const Aws::String aws_key(key.c_str(), key.size());
     if (s3Adapter4Meta_->ObjectExist(aws_key)) {

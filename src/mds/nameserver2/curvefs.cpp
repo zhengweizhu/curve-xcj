@@ -1152,19 +1152,19 @@ StatusCode CurveFS::CreateSnapShotFile(const std::string &fileName,
     }
 
     // check whether snapshot exist
-    std::vector<FileInfo> snapShotFiles;
-    if (storage_->ListSnapshotFile(fileInfo.id(),
-                  fileInfo.id() + 1, &snapShotFiles) != StoreStatus::OK ) {
-        LOG(ERROR) << fileName  << "listFile fail";
-        return StatusCode::kStorageError;
-    }
-    if (snapShotFiles.size() != 0) {
-        LOG(INFO) << fileName << " exist snapshotfile, num = "
-            << snapShotFiles.size()
-            << ", snapShotFiles[0].seqNum = " << snapShotFiles[0].seqnum();
-        *snapshotFileInfo = snapShotFiles[0];
-        return StatusCode::kFileUnderSnapShot;
-    }
+    // std::vector<FileInfo> snapShotFiles;
+    // if (storage_->ListSnapshotFile(fileInfo.id(),
+    //               fileInfo.id() + 1, &snapShotFiles) != StoreStatus::OK ) {
+    //     LOG(ERROR) << fileName  << "listFile fail";
+    //     return StatusCode::kStorageError;
+    // }
+    // if (snapShotFiles.size() != 0) {
+    //     LOG(INFO) << fileName << " exist snapshotfile, num = "
+    //         << snapShotFiles.size()
+    //         << ", snapShotFiles[0].seqNum = " << snapShotFiles[0].seqnum();
+    //     *snapshotFileInfo = snapShotFiles[0];
+    //     return StatusCode::kFileUnderSnapShot;
+    // }
 
     // TTODO(hzsunjianliang): check if fileis open and session not expire
     // then invalide client

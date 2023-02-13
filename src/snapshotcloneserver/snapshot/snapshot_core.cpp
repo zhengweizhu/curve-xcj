@@ -276,6 +276,11 @@ void SnapshotCoreImpl::HandleCreateSnapshotTask(
         return CancelAfterCreateSnapshotOnCurvefs(task);
     }
 
+    if (!dataStore_->Enabled()) {
+        HandleCreateSnapshotSuccess(task);
+        return;
+    }
+
     ChunkIndexData indexData;
     ChunkIndexDataName name(fileName, seqNum);
     // the key is segment index
