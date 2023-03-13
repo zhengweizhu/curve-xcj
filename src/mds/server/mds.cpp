@@ -78,6 +78,11 @@ void MDS::InitMdsOptions(std::shared_ptr<Configuration> conf) {
 
     conf_->GetValueFatalIfFail(
         "mds.filelock.bucketNum", &options_.mdsFilelockBucketNum);
+
+    if (!conf->GetUInt32Value("mds.mdsSessionTimeUs", &options_.mdsSessionTimeUs)) {
+        options_.mdsSessionTimeUs = 3000*1000;
+        LOG(INFO) << "Conf mds.mdsSessionTimeUs defaults to " << options_.mdsSessionTimeUs;
+    }
 }
 
 void MDS::StartDummy() {
@@ -159,7 +164,7 @@ void MDS::Run() {
     kCurveFS.Run();
     LOG_IF(FATAL, !cleanManager_->Start()) << "start cleanManager fail.";
     // recover unfinished tasks
-    cleanManager_->RecoverCleanTasks();
+    cleanManager_->RecoverCleanTasks2();
     // start scheduler module
     coordinator_->Run();
     // start brpc server
@@ -521,7 +526,7 @@ void MDS::InitCleanManager() {
                                                  segmentAllocStatistic_);
 
     cleanManager_ = std::make_shared<CleanManager>(cleanCore,
-                                            taskManager, nameServerStorage_);
+                                            taskManager, nameServerStorage_, options_.mdsSessionTimeUs);
     LOG(INFO) << "init CleanManager success.";
 }
 
