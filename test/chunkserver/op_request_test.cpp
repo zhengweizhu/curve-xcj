@@ -240,7 +240,7 @@ TEST(ChunkOpRequestTest, encode) {
     }
     /* for detele snapshot */
     request.set_optype(CHUNK_OP_TYPE::CHUNK_OP_DELETE_SNAP);
-    request.set_correctedsn(sn);
+    request.set_snapsn(sn);
     {
         ChunkOpRequest *opReq
             = new DeleteSnapshotRequest(nodePtr,
@@ -263,7 +263,7 @@ TEST(ChunkOpRequestTest, encode) {
         ASSERT_EQ(logicPoolId, request.logicpoolid());
         ASSERT_EQ(copysetId, request.copysetid());
         ASSERT_EQ(chunkId, request.chunkid());
-        ASSERT_EQ(sn, request.correctedsn());
+        ASSERT_EQ(sn, request.snapsn());
         delete opReq;
     }
     /* for create clone chunk */
@@ -486,7 +486,7 @@ TEST(ChunkOpRequestTest, OnApplyErrorTest) {
         request.set_logicpoolid(logicPoolId);
         request.set_copysetid(copysetId);
         request.set_chunkid(chunkId);
-        request.set_correctedsn(sn);
+        request.set_snapsn(sn);
         brpc::Controller *cntl = new brpc::Controller();
         ChunkOpRequest *opReq = new DeleteSnapshotRequest(nodePtr,
                                                           cntl,
@@ -507,7 +507,7 @@ TEST(ChunkOpRequestTest, OnApplyErrorTest) {
         request.set_logicpoolid(logicPoolId);
         request.set_copysetid(copysetId);
         request.set_chunkid(chunkId);
-        request.set_correctedsn(sn);
+        request.set_snapsn(sn);
         brpc::Controller *cntl = new brpc::Controller();
         ChunkOpRequest *opReq = new DeleteSnapshotRequest(nodePtr,
                                                           cntl,
@@ -681,7 +681,7 @@ TEST(ChunkOpRequestTest, OnApplyFromLogTest) {
         request.set_logicpoolid(logicPoolID);
         request.set_copysetid(copysetID);
         request.set_chunkid(1);
-        request.set_correctedsn(sn);
+        request.set_snapsn(sn);
         request.set_optype(CHUNK_OP_TYPE::CHUNK_OP_DELETE_SNAP);
         butil::IOBuf data;
         DeleteSnapshotRequest req;

@@ -140,6 +140,7 @@ typedef struct FInfo {
     uint64_t        length;
     uint64_t        ctime;
     uint64_t        seqnum;
+    std::vector<uint64_t> snaps;
     // userinfo是当前操作这个文件的用户信息
     UserInfo_t      userinfo;
     // owner是当前文件所属信息

@@ -72,6 +72,9 @@ message FileInfo {
     optional    uint64      stripeCount = 16;
 
     optional    uint64      epoch = 18;
+
+    // sequence numbers of snapshots
+    repeated    uint64      snaps = 19;
 }
 
 // status code

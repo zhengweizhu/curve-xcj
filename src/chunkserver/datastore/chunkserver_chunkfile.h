@@ -167,7 +167,8 @@ class CSChunkFile {
                       const butil::IOBuf& buf,
                       off_t offset,
                       size_t length,
-                      uint32_t* cost);
+                      uint32_t* cost,
+                      std::shared_ptr<SnapContext> ctx = nullptr);
 
     CSErrorCode Sync();
 
@@ -226,7 +227,7 @@ class CSChunkFile {
      *  snapshot.
      * @return: return error code
      */
-    CSErrorCode DeleteSnapshotOrCorrectSn(SequenceNum correctedSn);
+    CSErrorCode DeleteSnapshot(SequenceNum snapSn, std::shared_ptr<SnapContext> ctx = nullptr);
     /**
      * Get chunk info
      * @param[out]: the chunk info getted
@@ -248,13 +249,18 @@ class CSChunkFile {
      * @return: true means to create a snapshot;
      *          false means no need to create a snapshot
      */
-    bool needCreateSnapshot(SequenceNum sn);
+    bool needCreateSnapshot(SequenceNum sn, std::shared_ptr<SnapContext> ctx);
+    /**
+     * To create a snapshot chunk
+     * @param sn: sequence number of the snapshot
+     */
+    CSErrorCode createSnapshot(SequenceNum sn);
     /**
      * Determine whether to copy on write
      * @param sn: write request sequence number
      * @return: true means cow is required; false means cow is not required
      */
-    bool needCow(SequenceNum sn);
+    bool needCow(SequenceNum sn, std::shared_ptr<SnapContext> ctx);
     /**
      * Persist metapage
      * @param metaPage: the metapage that needs to be persisted to disk,
@@ -378,7 +384,7 @@ class CSChunkFile {
     // read-write lock
     RWLock rwLock_;
     // Snapshot file pointer
-    CSSnapshot* snapshot_;
+    std::shared_ptr<CSSnapshots> snapshots_;
     // Rely on FilePool to create and delete files
     std::shared_ptr<FilePool> chunkFilePool_;
     // Rely on the local file system to manipulate files
