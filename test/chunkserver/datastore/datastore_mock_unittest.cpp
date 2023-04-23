@@ -1658,7 +1658,7 @@ TEST_F(CSDataStore_test, WriteChunkTest14) {
  *      sn>chunk.correctedSn
  *      chunk.sn<snap.sn
  *      chunk存在快照
- * 预期结果:先cow到snapshot，再写chunk文件
+ * 预期结果:不创建snapshot，不COW，写chunk文件
  */
 TEST_F(CSDataStore_test, WriteChunkTest15) {
     // initialize
@@ -1721,7 +1721,7 @@ TEST_F(CSDataStore_test, WriteChunkTest15) {
  *      sn>chunk.correctedSn
  *      chunk.sn==snap.sn
  *      chunk存在快照
- * 预期结果:先cow到snapshot，再写chunk文件
+ * 预期结果:不创建snapshot，不COW，写chunk文件
  */
 TEST_F(CSDataStore_test, WriteChunkTest16) {
     // initialize
@@ -1796,6 +1796,8 @@ TEST_F(CSDataStore_test, WriteChunkErrorTest1) {
     size_t length = PAGE_SIZE;
     char buf[length];  // NOLINT
     memset(buf, 0, sizeof(buf));
+    butil::IOBuf data;
+    data.append_user_data(const_cast<char*>(buf), length, TrivialDeleter);
     string snapPath = string(baseDir) + "/" +
         FileNameOperator::GenerateSnapshotName(id, 2);
 
@@ -1805,13 +1807,16 @@ TEST_F(CSDataStore_test, WriteChunkErrorTest1) {
     EXPECT_CALL(*fpool_, GetFile(snapPath, NotNull()))
         .WillOnce(Return(-UT_ERRNO));
 
+    // simulate there existed a snapshot with sn==2
+    std::shared_ptr<SnapContext> ctx(new SnapContext({2}));
     EXPECT_EQ(CSErrorCode::InternalError,
               dataStore->WriteChunk(id,
                                     sn,
-                                    buf,
+                                    data,
                                     offset,
                                     length,
-                                    nullptr));
+                                    nullptr,
+                                    ctx));
     CSChunkInfo info;
     dataStore->GetChunkInfo(id, &info);
     ASSERT_EQ(2, info.curSn);
@@ -1828,10 +1833,11 @@ TEST_F(CSDataStore_test, WriteChunkErrorTest1) {
     EXPECT_EQ(CSErrorCode::InternalError,
               dataStore->WriteChunk(id,
                                     sn,
-                                    buf,
+                                    data,
                                     offset,
                                     length,
-                                    nullptr));
+                                    nullptr,
+                                    ctx));
     dataStore->GetChunkInfo(id, &info);
     ASSERT_EQ(2, info.curSn);
     ASSERT_EQ(0, info.snapSn);
@@ -1848,10 +1854,11 @@ TEST_F(CSDataStore_test, WriteChunkErrorTest1) {
     EXPECT_EQ(CSErrorCode::InternalError,
               dataStore->WriteChunk(id,
                                     sn,
-                                    buf,
+                                    data,
                                     offset,
                                     length,
-                                    nullptr));
+                                    nullptr,
+                                    ctx));
     dataStore->GetChunkInfo(id, &info);
     ASSERT_EQ(2, info.curSn);
     ASSERT_EQ(0, info.snapSn);
@@ -1881,6 +1888,8 @@ TEST_F(CSDataStore_test, WriteChunkErrorTest2) {
     size_t length = PAGE_SIZE;
     char buf[length];  // NOLINT
     memset(buf, 0, sizeof(buf));
+    butil::IOBuf data;
+    data.append_user_data(const_cast<char*>(buf), length, TrivialDeleter);
     // will Open snapshot file, snap sn equals 2
     string snapPath = string(baseDir) + "/" +
         FileNameOperator::GenerateSnapshotName(id, 2);
@@ -1903,13 +1912,16 @@ TEST_F(CSDataStore_test, WriteChunkErrorTest2) {
     EXPECT_CALL(*lfs_, Write(3, Matcher<const char*>(NotNull()), 0, PAGE_SIZE))
         .WillOnce(Return(-UT_ERRNO));
 
+    // simulate there existed a snapshot with sn==2
+    std::shared_ptr<SnapContext> ctx(new SnapContext({2}));
     EXPECT_EQ(CSErrorCode::InternalError,
               dataStore->WriteChunk(id,
                                     sn,
-                                    buf,
+                                    data,
                                     offset,
                                     length,
-                                    nullptr));
+                                    nullptr,
+                                    ctx));
     CSChunkInfo info;
     dataStore->GetChunkInfo(id, &info);
     // chunk sn not changed
@@ -1943,6 +1955,8 @@ TEST_F(CSDataStore_test, WriteChunkErrorTest3) {
     size_t length = PAGE_SIZE;
     char buf[length];  // NOLINT
     memset(buf, 0, sizeof(buf));
+    butil::IOBuf data;
+    data.append_user_data(const_cast<char*>(buf), length, TrivialDeleter);
     // will Open snapshot file, snap sn equals 2
     string snapPath = string(baseDir) + "/" +
         FileNameOperator::GenerateSnapshotName(id, 2);
@@ -1970,13 +1984,16 @@ TEST_F(CSDataStore_test, WriteChunkErrorTest3) {
     EXPECT_CALL(*lfs_, Read(3, NotNull(), PAGE_SIZE + offset, length))
         .WillOnce(Return(-UT_ERRNO));
 
+    // simulate there existed a snapshot with sn==2
+    std::shared_ptr<SnapContext> ctx(new SnapContext({2}));
     EXPECT_EQ(CSErrorCode::InternalError,
               dataStore->WriteChunk(id,
                                     sn,
-                                    buf,
+                                    data,
                                     offset,
                                     length,
-                                    nullptr));
+                                    nullptr,
+                                    ctx));
     CSChunkInfo info;
     dataStore->GetChunkInfo(id, &info);
     ASSERT_EQ(3, info.curSn);
@@ -1993,10 +2010,11 @@ TEST_F(CSDataStore_test, WriteChunkErrorTest3) {
     EXPECT_EQ(CSErrorCode::InternalError,
               dataStore->WriteChunk(id,
                                     sn,
-                                    buf,
+                                    data,
                                     offset,
                                     length,
-                                    nullptr));
+                                    nullptr,
+                                    ctx));
     dataStore->GetChunkInfo(id, &info);
     ASSERT_EQ(3, info.curSn);
     ASSERT_EQ(2, info.snapSn);
@@ -2015,10 +2033,11 @@ TEST_F(CSDataStore_test, WriteChunkErrorTest3) {
     EXPECT_EQ(CSErrorCode::InternalError,
               dataStore->WriteChunk(id,
                                     sn,
-                                    buf,
+                                    data,
                                     offset,
                                     length,
-                                    nullptr));
+                                    nullptr,
+                                    ctx));
     dataStore->GetChunkInfo(id, &info);
     ASSERT_EQ(3, info.curSn);
     ASSERT_EQ(2, info.snapSn);
@@ -2043,10 +2062,11 @@ TEST_F(CSDataStore_test, WriteChunkErrorTest3) {
     EXPECT_EQ(CSErrorCode::Success,
               dataStore->WriteChunk(id,
                                     sn,
-                                    buf,
+                                    data,
                                     offset,
                                     length,
-                                    nullptr));
+                                    nullptr,
+                                    ctx));
 
     EXPECT_CALL(*lfs_, Close(1))
         .Times(1);
@@ -2075,6 +2095,8 @@ TEST_F(CSDataStore_test, WriteChunkErrorTest4) {
     size_t length = PAGE_SIZE;
     char buf[length];  // NOLINT
     memset(buf, 0, sizeof(buf));
+    butil::IOBuf data;
+    data.append_user_data(const_cast<char*>(buf), length, TrivialDeleter);
     // will Open snapshot file, snap sn equals 2
     string snapPath = string(baseDir) + "/" +
         FileNameOperator::GenerateSnapshotName(id, 2);
@@ -2110,13 +2132,16 @@ TEST_F(CSDataStore_test, WriteChunkErrorTest4) {
                 Write(3, Matcher<butil::IOBuf>(_), PAGE_SIZE + offset, length))
         .WillOnce(Return(-UT_ERRNO));
 
+    // simulate there existed a snapshot with sn==2
+    std::shared_ptr<SnapContext> ctx(new SnapContext({2}));
     EXPECT_EQ(CSErrorCode::InternalError,
               dataStore->WriteChunk(id,
                                     sn,
-                                    buf,
+                                    data,
                                     offset,
                                     length,
-                                    nullptr));
+                                    nullptr,
+                                    ctx));
     // 再次写入直接写chunk文件
     // will write data
     EXPECT_CALL(*lfs_,
@@ -2126,10 +2151,11 @@ TEST_F(CSDataStore_test, WriteChunkErrorTest4) {
     EXPECT_EQ(CSErrorCode::Success,
               dataStore->WriteChunk(id,
                                     sn,
-                                    buf,
+                                    data,
                                     offset,
                                     length,
-                                    nullptr));
+                                    nullptr,
+                                    ctx));
     EXPECT_CALL(*lfs_, Close(1))
         .Times(1);
     EXPECT_CALL(*lfs_, Close(2))
@@ -2735,7 +2761,9 @@ TEST_F(CSDataStore_test, ReadSnapshotChunkTest3) {
     size_t length = PAGE_SIZE * 2;
     char writeBuf[length];  // NOLINT
     memset(writeBuf, 0, sizeof(writeBuf));
-    // data in [PAGE_SIZE, 2*PAGE_SIZE) will be cow
+    butil::IOBuf data;
+    data.append_user_data(const_cast<char*>(writeBuf), length, TrivialDeleter);
+    // data in [PAGE_SIZE, 3*PAGE_SIZE) will be cow
     EXPECT_CALL(*lfs_, Read(1, NotNull(), offset + PAGE_SIZE, length))
         .Times(1);
     EXPECT_CALL(*lfs_, Write(2, Matcher<const char*>(NotNull()),
@@ -2748,13 +2776,17 @@ TEST_F(CSDataStore_test, ReadSnapshotChunkTest3) {
     EXPECT_CALL(*lfs_,
                 Write(1, Matcher<butil::IOBuf>(_), offset + PAGE_SIZE, length))
         .Times(1);
+
+    // indicate there existed a snapshot with sn==1
+    std::shared_ptr<SnapContext> ctx(new SnapContext({1}));
     EXPECT_EQ(CSErrorCode::Success,
               dataStore->WriteChunk(id,
                                     sn,
-                                    writeBuf,
+                                    data,
                                     offset,
                                     length,
-                                    nullptr));
+                                    nullptr,
+                                    ctx));
 
     // test out of range
     sn = 1;
@@ -2796,7 +2828,7 @@ TEST_F(CSDataStore_test, ReadSnapshotChunkTest3) {
 /**
  * ReadSnapshotChunkTest
  * case:chunk存在，但是请求的版本号不存在
- * 预期结果:返回ChunkNotExistError错误码
+ * 预期结果:返回成功，读取chunk file
  */
 TEST_F(CSDataStore_test, ReadSnapshotChunkTest4) {
     // initialize
@@ -2809,13 +2841,18 @@ TEST_F(CSDataStore_test, ReadSnapshotChunkTest4) {
     size_t length = PAGE_SIZE;
     char buf[length];  // NOLINT
     memset(buf, 0, sizeof(buf));
+    EXPECT_CALL(*lfs_,Read(1,NotNull(),offset+PAGE_SIZE,length))
+        .Times(0);
+
     // test sn not exists
-    EXPECT_EQ(CSErrorCode::ChunkNotExistError,
+    std::shared_ptr<SnapContext> ctx(new SnapContext({1}));
+    EXPECT_EQ(CSErrorCode::SnapshotNotExistError,
               dataStore->ReadSnapshotChunk(id,
                                            sn,
                                            buf,
                                            offset,
-                                           length));
+                                           length,
+                                           ctx));
 
     EXPECT_CALL(*lfs_, Close(1))
         .Times(1);
@@ -2841,7 +2878,9 @@ TEST_F(CSDataStore_test, ReadSnapshotChunkErrorTest1) {
     size_t length = PAGE_SIZE * 2;
     char writeBuf[length];  // NOLINT
     memset(writeBuf, 0, sizeof(writeBuf));
-    // data in [PAGE_SIZE, 2*PAGE_SIZE) will be cow
+    butil::IOBuf data;
+    data.append_user_data(const_cast<char*>(writeBuf), length, TrivialDeleter);
+    // data in [PAGE_SIZE, 3*PAGE_SIZE) will be cow
     EXPECT_CALL(*lfs_, Read(1, NotNull(), offset + PAGE_SIZE, length))
         .Times(1);
     EXPECT_CALL(*lfs_, Write(2, Matcher<const char*>(NotNull()),
@@ -2854,13 +2893,16 @@ TEST_F(CSDataStore_test, ReadSnapshotChunkErrorTest1) {
     EXPECT_CALL(*lfs_,
                 Write(1, Matcher<butil::IOBuf>(_), offset + PAGE_SIZE, length))
         .Times(1);
+    // indicate there existed a snapshot with sn==1
+    std::shared_ptr<SnapContext> ctx(new SnapContext({1}));
     EXPECT_EQ(CSErrorCode::Success,
               dataStore->WriteChunk(id,
                                     sn,
-                                    writeBuf,
+                                    data,
                                     offset,
                                     length,
-                                    nullptr));
+                                    nullptr,
+                                    ctx));
 
     // test in range, read [0, 4*PAGE_SIZE)
     sn = 1;
@@ -2871,6 +2913,8 @@ TEST_F(CSDataStore_test, ReadSnapshotChunkErrorTest1) {
     // read chunk failed
     EXPECT_CALL(*lfs_, Read(1, NotNull(), PAGE_SIZE, PAGE_SIZE))
         .WillOnce(Return(-UT_ERRNO));
+    EXPECT_CALL(*lfs_, Read(2, NotNull(),  2* PAGE_SIZE, 2 * PAGE_SIZE))
+        .Times(1);  
     EXPECT_EQ(CSErrorCode::InternalError,
               dataStore->ReadSnapshotChunk(id,
                                            sn,
@@ -2880,9 +2924,9 @@ TEST_F(CSDataStore_test, ReadSnapshotChunkErrorTest1) {
 
     // read snapshot failed
     EXPECT_CALL(*lfs_, Read(1, NotNull(), PAGE_SIZE, PAGE_SIZE))
-        .Times(1);
+        .Times(0);
     EXPECT_CALL(*lfs_, Read(1, NotNull(), 4 * PAGE_SIZE, PAGE_SIZE))
-        .Times(1);
+        .Times(0);
     EXPECT_CALL(*lfs_, Read(2, NotNull(), 2 * PAGE_SIZE, 2 * PAGE_SIZE))
         .WillOnce(Return(-UT_ERRNO));
     EXPECT_EQ(CSErrorCode::InternalError,
@@ -3065,7 +3109,7 @@ TEST_F(CSDataStore_test, DeleteChunkTest4) {
 /**
  * DeleteChunkErrorTest
  * case:chunk存在,快照文件不存在,recyclechunk时出错
- * 预期结果:返回成功
+ * 预期结果:返回失败
  */
 TEST_F(CSDataStore_test, DeleteChunkErrorTest1) {
     // initialize
@@ -3117,7 +3161,7 @@ TEST_F(CSDataStore_test, DeleteSnapshotChunk) {
 // 一个是删除快照文件，一个是修改correctedSn
 // 当存在快照文件时，fileSn>=chunk的sn是判断是否要删除快照的唯一条件
 // 对于correctedSn来说，fileSn大于chunk的sn以及correctedSn是判断
-// 是否要修改correctedSn的唯一条件
+// 是否要修改correctedSn的唯一条件 (该逻辑只针对原来的单层快照，对多层快照无意义)
 
 /**
  * DeleteSnapshotChunkTest
@@ -3125,7 +3169,7 @@ TEST_F(CSDataStore_test, DeleteSnapshotChunk) {
  *      fileSn >= chunk的sn
  *      fileSn == chunk的correctedSn
  *      chunk.sn>snap.sn
- * 预期结果:删除快照，不会修改correctedSn,返回成功
+ * 预期结果:删除快照，不会修改correctedSn,返回成功(该case不适合于多层快照)
  */
 TEST_F(CSDataStore_test, DeleteSnapshotChunkTest2) {
     // initialize
@@ -3143,6 +3187,7 @@ TEST_F(CSDataStore_test, DeleteSnapshotChunkTest2) {
     // fileSn > sn
     // fileSn == correctedSn
     SequenceNum fileSn = 3;
+    SequenceNum snapSn = 1;
     // snapshot will be closed
     EXPECT_CALL(*lfs_, Close(2))
         .Times(1);
@@ -3152,8 +3197,9 @@ TEST_F(CSDataStore_test, DeleteSnapshotChunkTest2) {
     // chunk's metapage should not be updated
     EXPECT_CALL(*lfs_, Write(1, Matcher<const char*>(NotNull()), 0, PAGE_SIZE))
         .Times(0);
+    std::shared_ptr<SnapContext> ctx(new SnapContext({1}));
     EXPECT_EQ(CSErrorCode::Success,
-              dataStore->DeleteSnapshotChunk(id, fileSn));
+              dataStore->DeleteSnapshotChunk(id, snapSn,ctx));
 
     EXPECT_CALL(*lfs_, Close(1))
         .Times(1);
@@ -3165,8 +3211,8 @@ TEST_F(CSDataStore_test, DeleteSnapshotChunkTest2) {
  * DeleteSnapshotChunkTest
  * case:chunk存在,snapshot存在
  *      fileSn < chunk的sn
- *      此时无论correctSn为何值都不会修改correctedSn
- * 预期结果:返回成功，不会删除快照,不会修改correctedSn
+ *      correctedSn永远不会更改
+ * 预期结果:返回成功，会删除快照,correctedSn永远不会更改(该case不适合于多层快照)
  */
 TEST_F(CSDataStore_test, DeleteSnapshotChunkTest3) {
     // initialize
@@ -3184,34 +3230,38 @@ TEST_F(CSDataStore_test, DeleteSnapshotChunkTest3) {
     // 2 < sn
     // 2 > correctedSn
     SequenceNum fileSn = 2;
-    // snapshot should not be closed
+    SequenceNum snapSn = 2-1;
+    // snapshot should be closed
     EXPECT_CALL(*lfs_, Close(2))
-        .Times(0);
+        .Times(1);
     // chunk's metapage should not be updated
     EXPECT_CALL(*lfs_, Write(3, Matcher<const char*>(NotNull()), 0, PAGE_SIZE))
         .Times(0);
-    EXPECT_EQ(CSErrorCode::BackwardRequestError,
-              dataStore->DeleteSnapshotChunk(id, fileSn));
+
+    // expect to call FilePool RecycleFile
+    EXPECT_CALL(*fpool_, RecycleFile(chunk1snap1Path))
+        .Times(1);
+    // indicate there existed a snapshot with sn==1
+    std::shared_ptr<SnapContext> ctx(new SnapContext({1}));
+    EXPECT_EQ(CSErrorCode::Success,
+              dataStore->DeleteSnapshotChunk(id, snapSn,ctx));
 
     // 下则用例用于补充DeleteSnapshotChunkTest2用例中
     // 当 fileSn == sn 时的边界情况
     // fileSn == sn
     // fileSn > correctedSn
     fileSn = 3;
-    // snapshot will be closed
-    EXPECT_CALL(*lfs_, Close(2))
-        .Times(1);
-    // expect to call FilePool RecycleFile
-    EXPECT_CALL(*fpool_, RecycleFile(chunk1snap1Path))
-        .Times(1);
+    snapSn = 3-1;
     // chunk's metapage should not be updated
     EXPECT_CALL(*lfs_, Write(1, Matcher<const char*>(NotNull()), 0, PAGE_SIZE))
         .Times(0);
+
     EXPECT_EQ(CSErrorCode::Success,
-              dataStore->DeleteSnapshotChunk(id, fileSn));
+              dataStore->DeleteSnapshotChunk(id, snapSn,ctx));
 
     EXPECT_CALL(*lfs_, Close(1))
         .Times(1);
+
     EXPECT_CALL(*lfs_, Close(3))
         .Times(1);
 }
@@ -3220,7 +3270,7 @@ TEST_F(CSDataStore_test, DeleteSnapshotChunkTest3) {
  * DeleteSnapshotChunkTest
  * case:chunk存在,snapshot存在
  *      fileSn > chunk的sn以及correctedSn
- * 预期结果:删除快照，并修改correctedSn,返回成功
+ * 预期结果:删除快照，correctedSn永远不会修改,返回成功(该case不适合于多层快照)
  */
 TEST_F(CSDataStore_test, DeleteSnapshotChunkTest4) {
     // initialize
@@ -3231,19 +3281,24 @@ TEST_F(CSDataStore_test, DeleteSnapshotChunkTest4) {
     // fileSn > sn
     // fileSn > correctedSn
     SequenceNum fileSn = 3;
-    // snapshot will be closed
-    EXPECT_CALL(*lfs_, Close(2))
-        .Times(1);
-    // expect to call FilePool RecycleFile
+    SequenceNum snapSn = 3-1;
+    // snapshot will exist
+
+    // not expect to call FilePool RecycleFile
     EXPECT_CALL(*fpool_, RecycleFile(chunk1snap1Path))
-        .Times(1);
-    // chunk's metapage will be updated
+        .Times(0);
+    // chunk's metapage will not be updated
     EXPECT_CALL(*lfs_, Write(1, Matcher<const char*>(NotNull()), 0, PAGE_SIZE))
-        .Times(1);
+        .Times(0);
+    // indicate there existed a snapshot with sn==1
+    std::shared_ptr<SnapContext> ctx(new SnapContext({1}));
+    // delete a snapshot which does not exist will succeed
     EXPECT_EQ(CSErrorCode::Success,
-              dataStore->DeleteSnapshotChunk(id, fileSn));
+              dataStore->DeleteSnapshotChunk(id, snapSn,ctx));
 
     EXPECT_CALL(*lfs_, Close(1))
+        .Times(1);
+    EXPECT_CALL(*lfs_, Close(2))
         .Times(1);
     EXPECT_CALL(*lfs_, Close(3))
         .Times(1);
@@ -3253,7 +3308,7 @@ TEST_F(CSDataStore_test, DeleteSnapshotChunkTest4) {
  * DeleteSnapshotChunkTest
  * case:chunk存在,snapshot不存在
  *      fileSn <= chunk的sn或correctedSn
- * 预期结果:不会修改correctedSn,返回成功
+ * 预期结果:不会修改correctedSn,返回成功 (该case不适合于多层快照)
  */
 TEST_F(CSDataStore_test, DeleteSnapshotChunkTest5) {
     // initialize
@@ -3282,7 +3337,7 @@ TEST_F(CSDataStore_test, DeleteSnapshotChunkTest5) {
  * DeleteSnapshotChunkTest
  * case:chunk存在,snapshot不存在
  *      fileSn > chunk的sn及correctedSn
- * 预期结果:修改correctedSn,返回成功
+ * 预期结果:correctedSn永远不会修改,返回成功 (该case不适合于多层快照)
  */
 TEST_F(CSDataStore_test, DeleteSnapshotChunkTest6) {
     // initialize
@@ -3293,11 +3348,12 @@ TEST_F(CSDataStore_test, DeleteSnapshotChunkTest6) {
     // fileSn > sn
     // fileSn > correctedSn
     SequenceNum fileSn = 4;
+    SequenceNum snapSn = 4-1;
     // chunk's metapage will be updated
     EXPECT_CALL(*lfs_, Write(3, Matcher<const char*>(NotNull()), 0, PAGE_SIZE))
-        .Times(1);
+        .Times(0);
     EXPECT_EQ(CSErrorCode::Success,
-              dataStore->DeleteSnapshotChunk(id, fileSn));
+              dataStore->DeleteSnapshotChunk(id, snapSn));
 
     EXPECT_CALL(*lfs_, Close(1))
         .Times(1);
@@ -3377,7 +3433,7 @@ TEST_F(CSDataStore_test, DeleteSnapshotChunkTest7) {
  *      fileSn > chunk的sn
  *      fileSn > chunk的correctedSn
  *      chunk.sn==snap.sn
- * 预期结果:删除快照，不会修改correctedSn,返回成功
+ * 预期结果:不删除快照，不会修改correctedSn,返回成功
  */
 TEST_F(CSDataStore_test, DeleteSnapshotChunkTest8) {
     // initialize
@@ -3402,17 +3458,19 @@ TEST_F(CSDataStore_test, DeleteSnapshotChunkTest8) {
     // fileSn > sn
     // fileSn > correctedSn
     SequenceNum fileSn = 3;
+    SequenceNum snapSn = 3-1;
     // snapshot will not be closed
     EXPECT_CALL(*lfs_, Close(2))
         .Times(0);
-    // expect to call FilePool RecycleFile
-    EXPECT_CALL(*fpool_, RecycleFile(chunk1snap1Path))
+    //not expect to call FilePool RecycleFile
+    EXPECT_CALL(*fpool_, RecycleFile(chunk1snap2Path))
         .Times(0);
-    // chunk's metapage should be updated
+    // chunk's metapage should not be updated
     EXPECT_CALL(*lfs_, Write(1, Matcher<const char*>(NotNull()), 0, PAGE_SIZE))
-        .Times(1);
+        .Times(0);
+    std::shared_ptr<SnapContext> ctx(new SnapContext({2}));
     EXPECT_EQ(CSErrorCode::Success,
-              dataStore->DeleteSnapshotChunk(id, fileSn));
+              dataStore->DeleteSnapshotChunk(id, snapSn,ctx));
 
     EXPECT_CALL(*lfs_, Close(1))
         .Times(1);
@@ -3476,7 +3534,7 @@ TEST_F(CSDataStore_test, DeleteSnapshotChunkTest9) {
 /**
  * DeleteSnapshotChunkErrorTest
  * case:修改correctedSn时失败
- * 预期结果:返回失败，correctedSn的值未改变
+ * 预期结果:返回失败，correctedSn的值未改变(该case不适合于多层快照)
  */
 TEST_F(CSDataStore_test, DeleteSnapshotChunkErrorTest1) {
     // initialize
@@ -3488,15 +3546,9 @@ TEST_F(CSDataStore_test, DeleteSnapshotChunkErrorTest1) {
     // fileSn > correctedSn
     SequenceNum fileSn = 3;
 
-    // write chunk metapage failed
+    // chunk's metapage will not be updated
     EXPECT_CALL(*lfs_, Write(3, Matcher<const char*>(NotNull()), 0, PAGE_SIZE))
-        .WillOnce(Return(-UT_ERRNO));
-    EXPECT_EQ(CSErrorCode::InternalError,
-              dataStore->DeleteSnapshotChunk(id, fileSn));
-
-    // chunk's metapage will be updated
-    EXPECT_CALL(*lfs_, Write(3, Matcher<const char*>(NotNull()), 0, PAGE_SIZE))
-        .Times(1);
+        .Times(0);
     EXPECT_EQ(CSErrorCode::Success,
               dataStore->DeleteSnapshotChunk(id, fileSn));
 
@@ -3522,17 +3574,19 @@ TEST_F(CSDataStore_test, DeleteSnapshotChunkErrorTest2) {
     // fileSn > sn
     // fileSn > correctedSn
     SequenceNum fileSn = 3;
+    SequenceNum snapSn = 1;
     // snapshot will be closed
     EXPECT_CALL(*lfs_, Close(2))
         .Times(1);
     // expect to call FilePool RecycleFile
     EXPECT_CALL(*fpool_, RecycleFile(chunk1snap1Path))
         .WillOnce(Return(-1));
-    // chunk's metapage will be updated
+    // chunk's metapage will not be updated
     EXPECT_CALL(*lfs_, Write(1, Matcher<const char*>(NotNull()), 0, PAGE_SIZE))
         .Times(0);
+    std::shared_ptr<SnapContext> ctx(new SnapContext({1}));
     EXPECT_EQ(CSErrorCode::InternalError,
-              dataStore->DeleteSnapshotChunk(id, fileSn));
+              dataStore->DeleteSnapshotChunk(id, snapSn,ctx));
 
     EXPECT_CALL(*lfs_, Close(1))
         .Times(1);

@@ -443,11 +443,11 @@ CSErrorCode CSSnapshots::Read(SequenceNum sn, char * buf, off_t offset, size_t l
     }
 
     // indicate whether given page has COW
-    std::unique_ptr<Bitmap> snapBitmap(new Bitmap(pageEndIndex));
+    std::unique_ptr<Bitmap> snapBitmap(new Bitmap(pageEndIndex+1));
 
     for (auto snapshot: snapshots) {
         const auto it = snapshot->GetPageStatus();
-        std::unique_ptr<Bitmap> curBitmap(new Bitmap(pageEndIndex));
+        std::unique_ptr<Bitmap> curBitmap(new Bitmap(pageEndIndex+1));
         for (uint32_t i = pageBeginIndex; i <= pageEndIndex; i++) {
             if (!it->Test(i)) continue;  // page not in current COW
             if (snapBitmap->Test(i)) continue; // page already hit in previous COW

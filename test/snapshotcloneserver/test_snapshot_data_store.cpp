@@ -64,11 +64,13 @@ TEST_F(TestS3SnapshotDataStore, testInit) {
         .Times(2)
         .WillOnce(Return(0))
         .WillOnce(Return(-1));
-    ASSERT_EQ(0, store_->Init(""));
-    ASSERT_EQ(0, store_->Init(""));
-    ASSERT_EQ(-1, store_->Init(""));
+    ASSERT_EQ(0, store_->Init("-"));
+    ASSERT_EQ(0, store_->Init("-"));
+    ASSERT_EQ(-1, store_->Init("-"));
 }
 TEST_F(TestS3SnapshotDataStore, testChunkIndexDataExist) {
+    EXPECT_CALL(*adapter4Meta_, BucketExist()).WillOnce(Return(true));  
+    ASSERT_EQ(0, store_->Init("-"));
     ChunkIndexDataName indexDataName("test", 1);
     Aws::String obj = "test-1";
     EXPECT_CALL(*adapter4Meta_, ObjectExist(obj))

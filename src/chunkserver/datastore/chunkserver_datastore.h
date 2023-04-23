@@ -242,6 +242,18 @@ class CSDataStore {
                           SnapContext::build_empty(), cloneSourceLocation);
     }
 
+    // Deprecated, only use for unit & integration test
+    virtual CSErrorCode WriteChunk(
+        ChunkID id, SequenceNum sn, const char *buf, off_t offset,
+        size_t length, uint32_t *cost,std::shared_ptr<SnapContext> ctx,
+        const std::string &cloneSourceLocation = "") {
+        butil::IOBuf data;
+        data.append_user_data(const_cast<char*>(buf), length, TrivialDeleter);
+
+        return WriteChunk(id, sn, data, offset, length, cost,
+                          ctx, cloneSourceLocation);
+    }
+
     /**
      * Create a cloned Chunk, record the data source location information
      * in the chunk

@@ -623,7 +623,18 @@ CSErrorCode CSChunkFile::DeleteSnapshot(SequenceNum snapSn, std::shared_ptr<Snap
         return CSErrorCode::StatusConflictError;
     }
 
-    return snapshots_->Delete(this, snapSn, ctx);
+    /*
+     * If chunk.sn>snap.sn, then this snapshot is either a historical snapshot,
+     * or a snapshot of the current sequence of the chunk,
+     * in this case the snapshot is allowed to be deleted.
+     * If chunk.sn<=snap.sn, then this snapshot must be generated after the
+     * current delete operation. The current delete operation is the historical
+     * log of playback, and deletion is not allowed in this case.
+     */
+    if(snapshots_->contains(snapSn) && metaPage_.sn > snapshots_->getCurrentSn()){
+        return snapshots_->Delete(this, snapSn, ctx);
+    }
+    return CSErrorCode::Success;
 }
 
 void CSChunkFile::GetInfo(CSChunkInfo* info)  {
