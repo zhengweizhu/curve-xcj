@@ -124,6 +124,8 @@ struct ChunkOptions {
 
 class CSChunkFile {
  public:
+    friend class CSSnapshots;
+ public:
     CSChunkFile(std::shared_ptr<LocalFileSystem> lfs,
                 std::shared_ptr<FilePool> chunkFilePool,
                 const ChunkOptions& options);
@@ -243,6 +245,13 @@ class CSChunkFile {
                         std::string *hash);
 
  private:
+     /**
+     * Called when a snapshot file is deleted and merged to a non-existent snapshot file.
+     * Write lock should NOT be added
+     * @param sn: the sequence number of the snapshot file to be loaded
+     * @return: return error code
+     */
+    CSErrorCode loadSnapshot(SequenceNum sn);
     /**
      * Determine whether you need to create a new snapshot
      * @param sn: write request sequence number

@@ -252,6 +252,10 @@ CSErrorCode CSChunkFile::Open(bool createFile) {
 
 CSErrorCode CSChunkFile::LoadSnapshot(SequenceNum sn) {
     WriteLockGuard writeGuard(rwLock_);
+    return loadSnapshot(sn);
+}
+
+CSErrorCode CSChunkFile::loadSnapshot(SequenceNum sn) {
     if (snapshots_->contains(sn)) {
         LOG(ERROR) << "Multiple snapshot file found with same SeqNum."
                    << " ChunkID: " << chunkId_

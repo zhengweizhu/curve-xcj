@@ -339,8 +339,9 @@ bool CSSnapshots::erase(SequenceNum sn) {
 CSSnapshot *CSSnapshots::pop(SequenceNum sn) {
     std::vector<CSSnapshot*>::iterator it = find(sn);
     if (it != snapshots_.end()) {
+        CSSnapshot* snap = *it;
         snapshots_.erase(it);
-        return *it;
+        return snap;
     }
 
     return nullptr;
@@ -408,7 +409,7 @@ CSErrorCode CSSnapshots::Delete(CSChunkFile* chunkf, SequenceNum snapSn, std::sh
             return errorCode;
         }
 
-        return chunkf->LoadSnapshot(prev);
+        return chunkf->loadSnapshot(prev);
     }
 
     // do merge if both snap chunk `prev' and `curr' exists.
@@ -512,7 +513,7 @@ CSErrorCode CSSnapshots::Merge(SequenceNum from, SequenceNum to) {
     uint32_t pos = 0;
     char buf[pageSize_];
     // TODO read/write in ranges
-    for (pos = snapFrom->metaPage_.bitmap->NextSetBit(pos); pos != Bitmap::NO_POS; pos += 1) {
+    for (pos = snapFrom->metaPage_.bitmap->NextSetBit(pos); pos != Bitmap::NO_POS; pos =snapFrom->metaPage_.bitmap->NextSetBit(pos+1)) {
         if (!snapTo->metaPage_.bitmap->Test(pos)) {
             off_t offset = pageSize_ * pos;
             int rc = snapFrom->readData(buf, offset, pageSize_);
