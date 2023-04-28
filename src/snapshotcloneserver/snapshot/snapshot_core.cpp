@@ -961,18 +961,24 @@ void SnapshotCoreImpl::HandleDeleteSnapshotTask(
     SnapshotInfo &info = task->GetSnapshotInfo();
     UUID uuid = task->GetUuid();
     uint64_t seqNum = info.GetSeqNum();
+    LOG(INFO) << "HandleDeleteSnapshotTask start, uuid = " << uuid
+              << ", seqNum = " << seqNum << ", snapshotName =  " << info.GetSnapshotName();
     FileSnapMap fileSnapshotMap;
-    int ret = BuildSnapshotMap(task->GetFileName(), seqNum, &fileSnapshotMap);
-    if (ret < 0) {
-        LOG(ERROR) << "BuildSnapshotMap error, "
-                   << " fileName = " << task->GetFileName()
-                   << ", seqNum = " << seqNum
-                   << ", uuid = " << task->GetUuid();
-        HandleDeleteSnapshotError(task);
-        return;
+    int ret = 0;
+    if (dataStore_->Enabled()) {
+        ret = BuildSnapshotMap(task->GetFileName(), seqNum, &fileSnapshotMap);
+        if (ret < 0) {
+            LOG(ERROR) << "BuildSnapshotMap error, "
+                    << " fileName = " << task->GetFileName()
+                    << ", seqNum = " << seqNum
+                    << ", uuid = " << task->GetUuid();
+            HandleDeleteSnapshotError(task);
+            return;
+        }
+        task->SetProgress(kDelProgressBuildSnapshotMapComplete);
+        task->UpdateMetric();
     }
-    task->SetProgress(kDelProgressBuildSnapshotMapComplete);
-    task->UpdateMetric();
+
     ChunkIndexDataName name(task->GetFileName(),
         seqNum);
     ChunkIndexData indexData;

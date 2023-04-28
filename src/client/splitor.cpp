@@ -74,7 +74,7 @@ int Splitor::IO2ChunkRequests(IOTracker* iotracker, MetaCache* metaCache,
 int Splitor::SingleChunkIO2ChunkRequests(
     IOTracker* iotracker, MetaCache* metaCache,
     std::vector<RequestContext*>* targetlist, const ChunkIDInfo& idinfo,
-    butil::IOBuf* data, off_t offset, uint64_t length, uint64_t seq) {
+    butil::IOBuf* data, off_t offset, uint64_t length, uint64_t seq, const std::vector<uint64_t>& snaps) {
     if (targetlist == nullptr || metaCache == nullptr || iotracker == nullptr) {
         return -1;
     }
@@ -113,6 +113,7 @@ int Splitor::SingleChunkIO2ChunkRequests(
         }
 
         newreqNode->seq_         = seq;
+        newreqNode->snaps_       = snaps;
         newreqNode->offset_      = currentOffset;
         newreqNode->rawlength_   = requestLength;
         newreqNode->optype_      = iotracker->Optype();
@@ -120,11 +121,12 @@ int Splitor::SingleChunkIO2ChunkRequests(
         newreqNode->padding = padding;
         newreqNode->done_->SetIOTracker(iotracker);
         targetlist->push_back(newreqNode);
-
+        std::string snapsStr = newreqNode->snaps_.empty()? "empty": std::to_string(newreqNode->snaps_.back());
         DVLOG(9) << "request split"
                  << ", off = " << currentOffset
                  << ", len = " << requestLength
                  << ", seqnum = " << seq
+                 << ", latest snap seq = " << snapsStr
                  << ", chunkid = " << idinfo.cid_
                  << ", copysetid = " << idinfo.cpid_
                  << ", logicpoolid = " << idinfo.lpid_;
@@ -176,7 +178,7 @@ bool Splitor::AssignInternal(IOTracker* iotracker, MetaCache* metaCache,
         std::vector<RequestContext*> templist;
         ret = SingleChunkIO2ChunkRequests(iotracker, metaCache, &templist,
                                           chunkIdInfo, data, off, len,
-                                          fileInfo->seqnum);
+                                          fileInfo->seqnum, fileInfo->snaps);
 
         for (auto& ctx : templist) {
             ctx->fileId_ = fileInfo->id;
@@ -296,11 +298,13 @@ int Splitor::SplitForNormal(IOTracker* iotracker, MetaCache* metaCache,
         uint64_t requestLength =
             std::min(currentChunkEndOffset, endRequestOffest) -
             currentRequestOffset;
-
+        
+        std::string snapsStr = fileInfo->snaps.empty()? "empty": std::to_string(fileInfo->snaps.back());
         DVLOG(9) << "request split"
                  << ", off = " << currentChunkOffset
                  << ", len = " << requestLength
                  << ", seqnum = " << fileInfo->seqnum
+                 << ", latest snap seq = " << snapsStr
                  << ", endoff = " << endRequestOffest
                  << ", chunkendpos = " << currentChunkEndOffset
                  << ", chunksize = " << chunksize
@@ -314,6 +318,7 @@ int Splitor::SplitForNormal(IOTracker* iotracker, MetaCache* metaCache,
                        << ", off = " << currentChunkOffset
                        << ", len = " << requestLength
                        << ", seqnum = " << fileInfo->seqnum
+                       << ", latest snap seq = " << snapsStr
                        << ", endoff = " << endRequestOffest
                        << ", chunkendpos = " << currentChunkEndOffset
                        << ", chunksize = " << chunksize
@@ -358,7 +363,7 @@ int Splitor::SplitForStripe(IOTracker* iotracker, MetaCache* metaCache,
         uint64_t blockOff = cur % stripeUnit;
         uint64_t curChunkOffset = blockInChunkStartOff + blockOff;
         uint64_t requestLength = std::min((stripeUnit - blockOff), left);
-
+        std::string snapsStr = fileInfo->snaps.empty()? "empty": std::to_string(fileInfo->snaps.back());
         if (!AssignInternal(iotracker, metaCache, targetlist, data,
                             curChunkOffset, requestLength, mdsclient,
                             fileInfo, fEpoch, curChunkIndex)) {
@@ -366,6 +371,7 @@ int Splitor::SplitForStripe(IOTracker* iotracker, MetaCache* metaCache,
                        << ", off = " << curChunkOffset
                        << ", len = " << requestLength
                        << ", seqnum = " << fileInfo->seqnum
+                       << ", latest snap seq = " << snapsStr
                        << ", chunksize = " << chunksize
                        << ", chunkindex = " << curChunkIndex;
 

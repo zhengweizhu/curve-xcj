@@ -210,7 +210,6 @@ class CSSnapshots {
  public:
     CSSnapshots(PageSizeType size): pageSize_(size) {}
     bool insert(CSSnapshot* s);
-    bool erase(SequenceNum sn);
     CSSnapshot* pop(SequenceNum sn);
     bool contains(SequenceNum sn) const;
     SequenceNum getCurrentSn() const;

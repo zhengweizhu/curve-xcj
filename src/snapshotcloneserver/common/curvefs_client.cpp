@@ -129,7 +129,7 @@ int CurveFsClientImpl::ReadChunkSnapshot(ChunkIDInfo cidinfo,
                         SnapCloneClosure* scc) {
     RetryMethod method = [this, &cidinfo, seq, offset, len, buf, scc] () {
         return snapClient_->ReadChunkSnapshot(
-            cidinfo, seq, offset, len, buf, scc);
+            cidinfo, seq, {seq}, offset, len, buf, scc);
     };
     RetryCondition condition = [] (int ret) {
         return ret < 0;

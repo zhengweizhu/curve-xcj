@@ -326,16 +326,6 @@ bool CSSnapshots::insert(CSSnapshot* s) {
     return true;
 }
 
-bool CSSnapshots::erase(SequenceNum sn) {
-    std::vector<CSSnapshot*>::iterator it = find(sn);
-    if (it != snapshots_.end()) {
-        delete *it;
-        return true;
-    }
-
-    return false;
-}
-
 CSSnapshot *CSSnapshots::pop(SequenceNum sn) {
     std::vector<CSSnapshot*>::iterator it = find(sn);
     if (it != snapshots_.end()) {

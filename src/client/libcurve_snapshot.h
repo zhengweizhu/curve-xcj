@@ -115,13 +115,14 @@ class SnapshotClient {
    * 读取seq版本号的快照数据
    * @param: cidinfo是当前chunk对应的id信息
    * @param: seq是快照版本号
+   * @param: snaps是当前chunk所有快照序号列表,仅用于校验待读取快照sn有效性
    * @param: offset是快照内的offset
    * @param: len是要读取的长度
    * @param: buf是读取缓冲区
    * @param: scc是异步回调
    * @return: 成功返回LIBCURVE_ERROR::OK,否则LIBCURVE_ERROR::FAILED
    */
-  int ReadChunkSnapshot(ChunkIDInfo cidinfo, uint64_t seq, uint64_t offset,
+  int ReadChunkSnapshot(ChunkIDInfo cidinfo, uint64_t seq, const std::vector<uint64_t>& snaps, uint64_t offset,
                         uint64_t len, char *buf, SnapCloneClosure* scc);
   /**
    * 删除此次转储时产生的或者历史遗留的快照

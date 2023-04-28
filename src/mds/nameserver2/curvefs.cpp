@@ -1185,6 +1185,10 @@ StatusCode CurveFS::CreateSnapShotFile(const std::string &fileName,
             std::to_string(fileInfo.seqnum()));
     snapshotFileInfo->set_filestatus(FileStatus::kFileCreated);
 
+    // save snapshot seq number to fileInfo,
+    // in order to let client know the latest snaps through RefreshSession rpc
+    fileInfo.add_snaps(fileInfo.seqnum());
+
     // add original file snapshot seq number
     fileInfo.set_seqnum(fileInfo.seqnum() + 1);
 

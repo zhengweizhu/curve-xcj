@@ -114,6 +114,7 @@ int RequestSender::WriteChunk(const ChunkIDInfo& idinfo,
                               uint64_t fileId,
                               uint64_t epoch,
                               uint64_t sn,
+                              const std::vector<uint64_t>& snaps,
                               const butil::IOBuf& data,
                               off_t offset,
                               size_t length,
@@ -135,6 +136,9 @@ int RequestSender::WriteChunk(const ChunkIDInfo& idinfo,
     request.set_copysetid(idinfo.cpid_);
     request.set_chunkid(idinfo.cid_);
     request.set_sn(sn);
+    for(uint64_t seq:snaps) {
+        request.add_snaps(seq);
+    }
     request.set_offset(offset);
     request.set_size(length);
     request.set_fileid(fileId);
@@ -156,6 +160,7 @@ int RequestSender::WriteChunk(const ChunkIDInfo& idinfo,
 
 int RequestSender::ReadChunkSnapshot(const ChunkIDInfo& idinfo,
                                      uint64_t sn,
+                                     const std::vector<uint64_t>& snaps,
                                      off_t offset,
                                      size_t length,
                                      ClientClosure *done) {
@@ -172,6 +177,9 @@ int RequestSender::ReadChunkSnapshot(const ChunkIDInfo& idinfo,
     request.set_copysetid(idinfo.cpid_);
     request.set_chunkid(idinfo.cid_);
     request.set_sn(sn);
+    for(uint64_t seq:snaps) {
+        request.add_snaps(seq);
+    }
     request.set_offset(offset);
     request.set_size(length);
     ChunkService_Stub stub(&channel_);

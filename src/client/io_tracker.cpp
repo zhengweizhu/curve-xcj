@@ -214,7 +214,7 @@ void IOTracker::DoWrite(MDSClient* mdsclient, const FInfo_t* fileInfo,
 }
 
 void IOTracker::ReadSnapChunk(const ChunkIDInfo &cinfo,
-    uint64_t seq, uint64_t offset, uint64_t len,
+    uint64_t seq, const std::vector<uint64_t>& snaps, uint64_t offset, uint64_t len,
     char *buf, SnapCloneClosure* scc) {
     scc_    = scc;
     data_   = buf;
@@ -225,7 +225,7 @@ void IOTracker::ReadSnapChunk(const ChunkIDInfo &cinfo,
     int ret = -1;
     do {
         ret = Splitor::SingleChunkIO2ChunkRequests(
-            this, mc_, &reqlist_, cinfo, nullptr, offset_, length_, seq);
+            this, mc_, &reqlist_, cinfo, nullptr, offset_, length_, seq, snaps);
         if (ret == 0) {
             PrepareReadIOBuffers(reqlist_.size());
             uint32_t subIoIndex = 0;

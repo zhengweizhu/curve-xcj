@@ -270,11 +270,12 @@ int SnapshotClient::RecoverChunk(const ChunkIDInfo &chunkidinfo,
 
 int SnapshotClient::ReadChunkSnapshot(ChunkIDInfo cidinfo,
                                         uint64_t seq,
+                                        const std::vector<uint64_t>& snaps,
                                         uint64_t offset,
                                         uint64_t len,
                                         char *buf,
                                         SnapCloneClosure* scc) {
-    return iomanager4chunk_.ReadSnapChunk(cidinfo, seq, offset, len, buf, scc);
+    return iomanager4chunk_.ReadSnapChunk(cidinfo, seq, snaps, offset, len, buf, scc);
 }
 
 int SnapshotClient::DeleteChunkSnapshotOrCorrectSn(
