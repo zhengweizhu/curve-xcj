@@ -154,7 +154,7 @@ bool Splitor::AssignInternal(IOTracker* iotracker, MetaCache* metaCache,
     if (NeedGetOrAllocateSegment(errCode, iotracker->Optype(), chunkIdInfo,
                                  metaCache)) {
         bool isAllocateSegment =
-            iotracker->Optype() == OpType::READ ? false : true;
+           (iotracker->Optype() == OpType::READ || iotracker->Optype() == OpType::READ_SNAP) ? false : true;
         if (false == GetOrAllocateSegment(
                          isAllocateSegment,
                          static_cast<uint64_t>(chunkidx) * fileInfo->chunksize,
@@ -178,7 +178,7 @@ bool Splitor::AssignInternal(IOTracker* iotracker, MetaCache* metaCache,
         std::vector<RequestContext*> templist;
         ret = SingleChunkIO2ChunkRequests(iotracker, metaCache, &templist,
                                           chunkIdInfo, data, off, len,
-                                          fileInfo->seqnum, fileInfo->snaps);
+                                          (iotracker->Optype() == OpType::READ_SNAP? fileInfo->snapSeqnum : fileInfo->seqnum), fileInfo->snaps);
 
         for (auto& ctx : templist) {
             ctx->fileId_ = fileInfo->id;
@@ -364,6 +364,16 @@ int Splitor::SplitForStripe(IOTracker* iotracker, MetaCache* metaCache,
         uint64_t curChunkOffset = blockInChunkStartOff + blockOff;
         uint64_t requestLength = std::min((stripeUnit - blockOff), left);
         std::string snapsStr = fileInfo->snaps.empty()? "empty": std::to_string(fileInfo->snaps.back());
+        DVLOG(9) << "request splitForStripe"
+                 << ", off = " << curChunkOffset
+                 << ", len = " << requestLength
+                 << ", seqnum = " << fileInfo->seqnum
+                 << ", latest snap seq = " << snapsStr
+                 << ", stripeUnit = " << stripeUnit
+                 << ", stripeCount = " << stripeCount
+                 << ", chunksize = " << chunksize
+                 << ", chunkindex = " << curChunkIndex;
+
         if (!AssignInternal(iotracker, metaCache, targetlist, data,
                             curChunkOffset, requestLength, mdsclient,
                             fileInfo, fEpoch, curChunkIndex)) {

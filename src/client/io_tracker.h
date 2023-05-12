@@ -89,6 +89,15 @@ class CURVE_CACHELINE_ALIGNMENT IOTracker {
                       const FInfo_t* fileInfo);
 
     /**
+     * @brief start an async read snapshot operation
+     * @param ctx async read context
+     * @param mdsclient used to communicate with MDS
+     * @param fileInfo current file info
+     */
+    void StartAioReadSnapshot(CurveAioContext* ctx, MDSClient* mdsclient,
+                      const FInfo_t* fileInfo);
+
+    /**
      * @brief start an async write operation
      * @param ctx async write context
      * @param mdsclient used to communicate with MDS

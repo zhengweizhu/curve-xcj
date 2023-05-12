@@ -154,10 +154,22 @@ class CURVE_CACHELINE_ALIGNMENT FileInstance {
         const std::string& filename, const UserInfo& userInfo,
         const OpenFlags& openflags = DefaultReadonlyOpenFlags());
 
+    // 当sn大于0时，代表该file instance用于读取快照文件，sn代表要读取的快照版本号
+    void SetReadSnapshotSn(uint64_t sn) {
+        if( sn > 0) {
+            snapshotSeq_ = sn;
+        }
+    }
+
+    uint64_t GetReadSnapshotSn() const {
+        return snapshotSeq_;
+    }
+
  private:
     void StopLease();
 
  private:
+    uint64_t snapshotSeq_ = 0;
     // 保存当前file的文件信息
     FInfo_t                 finfo_;
 

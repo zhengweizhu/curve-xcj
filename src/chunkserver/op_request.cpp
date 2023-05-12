@@ -595,6 +595,7 @@ void ReadSnapshotRequest::OnApply(uint64_t index,
             response_->set_status(CHUNK_OP_STATUS::CHUNK_OP_STATUS_CHUNK_NOTEXIST); //NOLINT
             break;
         }
+        std::string snapsStr = request_->snaps_size() == 0 ? "empty": std::to_string(request_->snaps(request_->snaps_size()-1));
         /**
          * 3.internal error
          */
@@ -604,6 +605,7 @@ void ReadSnapshotRequest::OnApply(uint64_t index,
                        << " copyset id: " << request_->copysetid()
                        << " chunkid: " << request_->chunkid()
                        << " sn: " << request_->sn()
+                       << " latest snap seq = " << snapsStr
                        << " data size: " << request_->size()
                        << " read len :" << size
                        << " offset: " << request_->offset()
@@ -617,6 +619,7 @@ void ReadSnapshotRequest::OnApply(uint64_t index,
                    << " copyset id: " << request_->copysetid()
                    << " chunkid: " << request_->chunkid()
                    << " sn: " << request_->sn()
+                   << " latest snap seq = " << snapsStr
                    << " data size: " << request_->size()
                    << " read len :" << size
                    << " offset: " << request_->offset()

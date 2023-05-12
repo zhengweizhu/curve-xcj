@@ -117,6 +117,9 @@ int FileInstance::Write(const char* buf, off_t offset, size_t len) {
 }
 
 int FileInstance::AioRead(CurveAioContext* aioctx, UserDataType dataType) {
+    if (GetReadSnapshotSn()) {
+        return iomanager4file_.AioReadSnapshot(aioctx, mdsclient_.get(), dataType);
+    }
     return iomanager4file_.AioRead(aioctx, mdsclient_.get(), dataType);
 }
 
@@ -142,6 +145,9 @@ int FileInstance::Open(const std::string& filename,
     LeaseSession_t  lease;
     int ret = LIBCURVE_ERROR::FAILED;
 
+    if(GetReadSnapshotSn()) {
+        finfo_.snapSeqnum = GetReadSnapshotSn();
+    }
     FileEpoch_t fEpoch;
     ret = mdsclient_->OpenFile(filename, finfo_.userinfo,
         &finfo_, &fEpoch, &lease);

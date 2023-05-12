@@ -140,6 +140,7 @@ typedef struct FInfo {
     uint64_t        length;
     uint64_t        ctime;
     uint64_t        seqnum;
+    uint64_t        snapSeqnum; // 待读取的快照版本号（用于测试读快照文件接口）
     std::vector<uint64_t> snaps;
     // userinfo是当前操作这个文件的用户信息
     UserInfo_t      userinfo;
@@ -166,6 +167,7 @@ typedef struct FInfo {
         segmentsize = 1 * 1024 * 1024 * 1024ul;
         stripeUnit = 0;
         stripeCount = 0;
+        snapSeqnum = 0;
     }
 } FInfo_t;
 

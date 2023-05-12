@@ -367,6 +367,24 @@ bool ServiceHelper::GetUserInfoFromFilename(const std::string& filename,
     return true;
 }
 
+bool ServiceHelper::GetSnapSeqFromFilename(const std::string& filename, 
+                                           uint64_t& sn,
+                                           std::string* realfilename) {
+    auto snapPos = filename.find_last_of("@");
+    if (snapPos == std::string::npos || snapPos == filename.length() -1 ) {
+        return false;
+    }
+    if (filename.find_first_not_of("0123456789", snapPos + 1) != std::string::npos ) {
+        LOG(ERROR) << "filename " << filename << " contains invalid seqnum.";
+        return false;
+    }
+
+    std::string snapStr = filename.substr(snapPos + 1);
+    sn = std::stoul(snapStr);
+    *realfilename = filename.substr(0, snapPos);
+    return true;
+}
+
 int ServiceHelper::CheckChunkServerHealth(
     const butil::EndPoint& endPoint, int32_t requestTimeoutMs) {
     brpc::Controller cntl;

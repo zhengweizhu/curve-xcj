@@ -89,6 +89,20 @@ void IOTracker::StartAioRead(CurveAioContext* ctx, MDSClient* mdsclient,
     DoRead(mdsclient, fileInfo);
 }
 
+void IOTracker::StartAioReadSnapshot(CurveAioContext* ctx, MDSClient* mdsclient,
+                             const FInfo_t* fileInfo) {
+    aioctx_ = ctx;
+    data_ = ctx->buf;
+    offset_ = ctx->offset;
+    length_ = ctx->length;
+    type_ = OpType::READ_SNAP;
+
+    DVLOG(9) << "aioreadsnapshot op, offset = " << ctx->offset
+             << ", length = " << ctx->length;
+
+    DoRead(mdsclient, fileInfo);
+}
+
 void IOTracker::DoRead(MDSClient* mdsclient, const FInfo_t* fileInfo) {
     int ret = Splitor::IO2ChunkRequests(this, mc_, &reqlist_, nullptr, offset_,
                                         length_, mdsclient, fileInfo, nullptr);
