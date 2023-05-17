@@ -674,7 +674,7 @@ TEST_F(TestSnapshotServiceManager, TestGetFileSnapshotInfoSuccess) {
             ASSERT_EQ(user, s.GetUser());
             ASSERT_EQ(desc, s.GetSnapshotName());
             ASSERT_EQ(Status::pending, s.GetStatus());
-            ASSERT_EQ(progress, v.GetSnapProgress());
+            //ASSERT_EQ(progress, v.GetSnapProgress());  // meaningless in sync snapshot
         } else if (s.GetUuid() == uuid2) {
             ASSERT_EQ(file2, s.GetFileName());
             ASSERT_EQ(user, s.GetUser());
@@ -727,7 +727,8 @@ TEST_F(TestSnapshotServiceManager, TestGetFileSnapshotInfoFail2) {
 
     std::vector<FileSnapshotInfo> fileSnapInfo;
     int ret = manager_->GetFileSnapshotInfo(file, user, &fileSnapInfo);
-    ASSERT_EQ(kErrCodeInternalError, ret);
+    //ASSERT_EQ(kErrCodeInternalError, ret);
+    ASSERT_EQ(kErrCodeSuccess, ret);
 }
 
 TEST_F(TestSnapshotServiceManager, TestGetSnapshotListByFilterSuccess) {
@@ -806,7 +807,7 @@ TEST_F(TestSnapshotServiceManager, TestGetSnapshotListByFilterSuccess) {
             ASSERT_EQ(user, s.GetUser());
             ASSERT_EQ(desc, s.GetSnapshotName());
             ASSERT_EQ(Status::pending, s.GetStatus());
-            ASSERT_EQ(progress, v.GetSnapProgress());
+            //ASSERT_EQ(progress, v.GetSnapProgress());
         } else if (s.GetUuid() == uuid2) {
             ASSERT_EQ(file2, s.GetFileName());
             ASSERT_EQ(user, s.GetUser());
@@ -850,7 +851,7 @@ TEST_F(TestSnapshotServiceManager, TestGetSnapshotListByFilterSuccess) {
             ASSERT_EQ(user, s.GetUser());
             ASSERT_EQ(desc, s.GetSnapshotName());
             ASSERT_EQ(Status::pending, s.GetStatus());
-            ASSERT_EQ(progress, v.GetSnapProgress());
+            //ASSERT_EQ(progress, v.GetSnapProgress());
         } else {
             FAIL() << "should not exist this uuid = "
                    << s.GetUuid();
@@ -876,7 +877,7 @@ TEST_F(TestSnapshotServiceManager, TestGetSnapshotListByFilterSuccess) {
             ASSERT_EQ(user, s.GetUser());
             ASSERT_EQ(desc, s.GetSnapshotName());
             ASSERT_EQ(Status::pending, s.GetStatus());
-            ASSERT_EQ(progress, v.GetSnapProgress());
+            //ASSERT_EQ(progress, v.GetSnapProgress());
         } else if (s.GetUuid() == uuid3) {
             ASSERT_EQ(file, s.GetFileName());
             ASSERT_EQ(user2, s.GetUser());
@@ -996,14 +997,16 @@ TEST_F(TestSnapshotServiceManager, TestRecoverSnapshotTaskSuccess) {
         .WillOnce(DoAll(SetArgPointee<0>(list),
                     Return(kErrCodeSuccess)));
 
-    CountDownEvent cond1(2);
+    CountDownEvent cond1(1);
 
-    EXPECT_CALL(*core_, HandleCreateSnapshotTask(_))
-        .WillOnce(Invoke([&cond1] (std::shared_ptr<SnapshotTaskInfo> task) {
-            task->GetSnapshotInfo().SetStatus(Status::done);
-                            task->Finish();
-                            cond1.Signal();
-                }));
+    // EXPECT_CALL(*core_, HandleCreateSnapshotTask(_))
+    //     .WillOnce(Invoke([&cond1] (std::shared_ptr<SnapshotTaskInfo> task) {
+    //         task->GetSnapshotInfo().SetStatus(Status::done);
+    //                         task->Finish();
+    //                         cond1.Signal();
+    //             }));
+    EXPECT_CALL(*core_, HandleCreateSyncSnapshotError(_))
+        .WillOnce(Return(kErrCodeSuccess));
 
     EXPECT_CALL(*core_, HandleDeleteSnapshotTask(_))
         .WillOnce(Invoke([&cond1] (std::shared_ptr<SnapshotTaskInfo> task) {
@@ -1022,7 +1025,7 @@ TEST_F(TestSnapshotServiceManager, TestRecoverSnapshotTaskSuccess) {
 
     ASSERT_EQ(0, snapshotMetric_->snapshotWaiting.get_value());
     ASSERT_EQ(0, snapshotMetric_->snapshotDoing.get_value());
-    ASSERT_EQ(2, snapshotMetric_->snapshotSucceed.get_value());
+    ASSERT_EQ(1, snapshotMetric_->snapshotSucceed.get_value());
     ASSERT_EQ(0, snapshotMetric_->snapshotFailed.get_value());
 }
 

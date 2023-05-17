@@ -126,6 +126,67 @@ int SnapshotCoreImpl::CreateSnapshotPre(const std::string &file,
     return kErrCodeSuccess;
 }
 
+int SnapshotCoreImpl::CreateSyncSnapshotPre(const std::string &file,
+    const std::string &user,
+    const std::string &snapshotName,
+    SnapshotInfo *snapInfo) {
+    NameLockGuard lockGuard(snapshotNameLock_, file);
+    std::vector<SnapshotInfo> fileInfo;
+    metaStore_->GetSnapshotList(file, &fileInfo);
+    int snapshotNum = fileInfo.size();
+    if (snapshotNum >= maxSnapshotLimit_) {
+        LOG(ERROR) << "Snapshot count reach the max limit.";
+        return kErrCodeSnapshotCountReachLimit;
+    }
+
+    FInfo fInfo;
+    int ret = client_->GetFileInfo(file, user, &fInfo);
+    switch (ret) {
+        case LIBCURVE_ERROR::OK:
+            break;
+        case -LIBCURVE_ERROR::NOTEXIST:
+            LOG(ERROR) << "create snapshot file not exist"
+                       << ", file = " << file
+                       << ", user = " << user
+                       << ", snapshotName = " << snapshotName;
+            return kErrCodeFileNotExist;
+        case -LIBCURVE_ERROR::AUTHFAIL:
+            LOG(ERROR) << "create snapshot by invalid user"
+                       << ", file = " << file
+                       << ", user = " << user
+                       << ", snapshotName = " << snapshotName;
+            return kErrCodeInvalidUser;
+        default:
+            LOG(ERROR) << "GetFileInfo encounter an error"
+                       << ", ret = " << ret
+                       << ", file = " << file
+                       << ", user = " << user;
+            return kErrCodeInternalError;
+    }
+
+    if (fInfo.filestatus != FileStatus::Created &&
+        fInfo.filestatus != FileStatus::Cloned) {
+        LOG(ERROR) << "Can not create snapshot when file status = "
+                   << static_cast<int>(fInfo.filestatus);
+        return kErrCodeFileStatusInvalid;
+    }
+
+    UUID uuid = UUIDGenerator().GenerateUUID();
+    SnapshotInfo info(uuid, user, file, snapshotName);
+    info.SetStatus(Status::pending);
+    ret = metaStore_->AddSnapshot(info);
+    if (ret < 0) {
+        LOG(ERROR) << "AddSnapshot error,"
+                   << " ret = " << ret
+                   << ", uuid = " << uuid
+                   << ", fileName = " << file
+                   << ", snapshotName = " << snapshotName;
+        return ret;
+    }
+    *snapInfo = info;
+    return kErrCodeSuccess;   
+}
+
 constexpr uint32_t kProgressCreateSnapshotOnCurvefsComplete = 5;
 constexpr uint32_t kProgressBuildChunkIndexDataComplete = 6;
 constexpr uint32_t kProgressBuildSnapshotMapComplete = 10;
@@ -334,6 +395,53 @@ void SnapshotCoreImpl::HandleCreateSnapshotTask(
     return;
 }
 
+/**
+ * @brief 同步执行创建秒级快照任务，只需要创建curvefs快照，成功后
+ *        更新快照状态为done记录到metaStore，任何一步失败都尝试删除
+ *        curvefs快照和metaStore快照记录并返回用户失败
+ * @param task 快照信息
+ * @return 错误码，创建curvefs快照和更新metaStore成功才返回success
+ */
+int SnapshotCoreImpl::HandleCreateSyncSnapshotTask(
+    std::shared_ptr<SnapshotTaskInfo> task) {
+    // 如果当前有失败的快照，需先清理失败的快照，否则返回失败
+    int ret = ClearErrorSnapBeforeCreateSyncSnapshot(task);
+    if (ret < 0) {
+        HandleCreateSyncSnapshotError(task);
+        return ret;
+    }
+
+    std::string fileName = task->GetFileName();
+    SnapshotInfo *info = &(task->GetSnapshotInfo());
+    ret = CreateSnapshotOnCurvefs(fileName, info, task);
+    if (ret < 0) {
+        LOG(ERROR) << "CreateSnapshotOnCurvefs error, "
+                   << " ret = " << ret
+                   << ", fileName = " << fileName
+                   << ", uuid = " << task->GetUuid();
+        HandleCreateSyncSnapshotError(task);
+        return ret;
+    }
+
+    info->SetStatus(Status::done);
+    ret = metaStore_->UpdateSnapshot(*info);
+    if (ret < 0) {
+        LOG(ERROR) << "UpdateSnapshot to done fail,"
+                   << " ret = " << ret
+                   << ", uuid = " << task->GetUuid();
+        HandleCreateSyncSnapshotError(task);
+        return ret;
+    }
+
+    LOG(INFO) << "CreateSyncSnapshot Task Success"
+              << ", uuid = " << info->GetUuid()
+              << ", fileName = " << info->GetFileName()
+              << ", snapshotName = " << info->GetSnapshotName()
+              << ", seqNum = " << info->GetSeqNum()
+              << ", createTime = " << info->GetCreateTime();
+    return kErrCodeSuccess;
+}
+
 int SnapshotCoreImpl::ClearErrorSnapBeforeCreateSnapshot(
     std::shared_ptr<SnapshotTaskInfo> task) {
     std::vector<SnapshotInfo> snapVec;
@@ -354,6 +462,34 @@ int SnapshotCoreImpl::ClearErrorSnapBeforeCreateSnapshot(
                            << ", error snapshot Id = " << snap.GetUuid()
                            << ", uuid = " << task->GetUuid();
 
+                return kErrCodeSnapshotCannotCreateWhenError;
+            }
+        }
+    }
+    return kErrCodeSuccess;
+}
+
+/**
+ * brief: 1. 创建同步快照过程中出错则会清除快照记录（包括curvefs和metaStore的记录），
+ *           若清除快照记录过程出错，则遗留状态为pending的快照记录到metaStore
+ *        2. 在程序重启recover时会尝试清除遗留的快照记录
+ *        3. 在收到创建快照请求时会要求清除遗留的快照记录，否则返回失败
+*/
+int SnapshotCoreImpl::ClearErrorSnapBeforeCreateSyncSnapshot(
+    std::shared_ptr<SnapshotTaskInfo> task) {
+    std::vector<SnapshotInfo> snapVec;
+    metaStore_->GetSnapshotList(task->GetFileName(), &snapVec);
+    for (auto& snap : snapVec) {
+        if (Status::pending == snap.GetStatus()) {
+            std::shared_ptr<SnapshotTaskInfo> taskInfo =
+                std::make_shared<SnapshotTaskInfo>(snap, nullptr);
+            LOG(INFO) << "Find pending snapshot when ClearErrorSnapBeforeCreateSyncSnapshot, "
+                      << "uuid = " << taskInfo->GetUuid()
+                      << ", ready to HandleCreateSyncSnapshotError" ;
+            int ret = HandleCreateSyncSnapshotError(taskInfo);
+            if(ret < 0 ) {
+                LOG(ERROR) << "HandleCreateSyncSnapshotError failed, ret = " << ret
+                            << ", uuid = " << taskInfo->GetUuid(); 
                 return kErrCodeSnapshotCannotCreateWhenError;
             }
         }
@@ -510,6 +646,37 @@ void SnapshotCoreImpl::HandleCreateSnapshotError(
               << ", createTime = " << snapInfo.GetCreateTime();
     task->Finish();
     return;
+}
+
+int SnapshotCoreImpl::HandleCreateSyncSnapshotError(
+    std::shared_ptr<SnapshotTaskInfo> task) {
+    auto &snapInfo = task->GetSnapshotInfo();
+    // 创建同步快照过程出现任何失败，都删除该快照
+    // 可能出现的罕见情况是，curvefs快照创建成功，因为其它错误导致需要删除该快照时，
+    // 这期间发生了IO产生COW，为了防止删除耗时阻塞，删除快照接口应为异步接口
+    int ret = DeleteSnapshotOnCurvefs(snapInfo);
+    if (ret < 0) {
+        LOG(ERROR) << "DeleteSnapshotOnCurvefs fail"
+                   << ", uuid = " << task->GetUuid();
+        return ret;
+    }
+    LOG(INFO) << "DeleteSnapshotOnCurvefs success "
+              << ", uuid = " << task->GetUuid();
+    
+    // 成功删除curvefs快照后，再清除metaStore上的快照记录
+    ret = metaStore_->DeleteSnapshot(task->GetUuid());
+    if(ret < 0 ) {
+        LOG(ERROR) << "MetaStore DeleteSnapshot error "
+                    << "while CreateSyncSnapshot, "
+                    << "ret = " << ret
+                    << ", uuid = " << task->GetUuid();
+        return ret;
+    }
+    LOG(INFO) << "MetaStore DeleteSnapshot success  "
+                << "while CreateSyncSnapshot, "
+                << "uuid = " << task->GetUuid();
+    
+    return kErrCodeSuccess;
 }
 
 int SnapshotCoreImpl::CreateSnapshotOnCurvefs(

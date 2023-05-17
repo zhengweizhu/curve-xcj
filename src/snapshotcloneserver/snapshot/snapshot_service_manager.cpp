@@ -84,6 +84,36 @@ int SnapshotServiceManager::CreateSnapshot(const std::string &file,
     return kErrCodeSuccess;
 }
 
+int SnapshotServiceManager::CreateSyncSnapshot(const std::string &file,
+    const std::string &user,
+    const std::string &snapshotName,
+    UUID *uuid) {
+    SnapshotInfo snapInfo;
+    int ret = core_->CreateSyncSnapshotPre(file, user, snapshotName, &snapInfo);
+    if (ret < 0) {
+        LOG(ERROR) << "CreateSyncSnapshotPre error, "
+                   << " ret = " << ret
+                   << ", file = " << file
+                   << ", snapshotName = " << snapshotName
+                   << ", uuid = " << snapInfo.GetUuid();
+        return ret;
+    }
+    *uuid = snapInfo.GetUuid();
+
+    std::shared_ptr<SnapshotTaskInfo> taskInfo =
+        std::make_shared<SnapshotTaskInfo>(snapInfo, nullptr);
+    ret =  core_->HandleCreateSyncSnapshotTask(taskInfo);
+    if (ret < 0) {
+        LOG(ERROR) << "HandleCreateSyncSnapshotTask error, "
+                   << " ret = " << ret 
+                   << ", file = " << file
+                   << ", snapshotName = " << snapshotName
+                   << ", uuid = " << snapInfo.GetUuid();
+        return ret;
+    }
+    return kErrCodeSuccess;
+}
+
 int SnapshotServiceManager::CancelSnapshot(
     const UUID &uuid,
     const std::string &user,
@@ -221,37 +251,39 @@ int SnapshotServiceManager::GetFileSnapshotInfoInner(
                 case Status::deleting:
                 case Status::errorDeleting:
                 case Status::pending: {
-                    UUID uuid = snap.GetUuid();
-                    std::shared_ptr<SnapshotTask> task =
-                        taskMgr_->GetTask(uuid);
-                    if (task != nullptr) {
-                        info->emplace_back(snap,
-                            task->GetTaskInfo()->GetProgress());
-                    } else {
-                        // 刚刚完成
-                        SnapshotInfo newInfo;
-                        ret = core_->GetSnapshotInfo(uuid, &newInfo);
-                        if (ret < 0) {
-                            LOG(ERROR) << "GetSnapshotInfo fail"
-                                       << ", ret = " << ret
-                                       << ", uuid = " << uuid;
-                            return ret;
-                        }
-                        switch (newInfo.GetStatus()) {
-                            case Status::done: {
-                                info->emplace_back(newInfo, 100);
-                                break;
-                            }
-                            case Status::error: {
-                                info->emplace_back(newInfo, 0);
-                                break;
-                            }
-                            default:
-                                LOG(ERROR) << "can not reach here!";
-                                // 当更新数据库失败时，有可能进入这里
-                                return kErrCodeInternalError;
-                        }
-                    }
+                    // UUID uuid = snap.GetUuid();
+                    // std::shared_ptr<SnapshotTask> task =
+                    //     taskMgr_->GetTask(uuid);
+                    // if (task != nullptr) {
+                    //     info->emplace_back(snap,
+                    //         task->GetTaskInfo()->GetProgress());
+                    // } else {
+                    //     // 刚刚完成
+                    //     SnapshotInfo newInfo;
+                    //     ret = core_->GetSnapshotInfo(uuid, &newInfo);
+                    //     if (ret < 0) {
+                    //         LOG(ERROR) << "GetSnapshotInfo fail"
+                    //                    << ", ret = " << ret
+                    //                    << ", uuid = " << uuid;
+                    //         return ret;
+                    //     }
+                    //     switch (newInfo.GetStatus()) {
+                    //         case Status::done: {
+                    //             info->emplace_back(newInfo, 100);
+                    //             break;
+                    //         }
+                    //         case Status::error: {
+                    //             info->emplace_back(newInfo, 0);
+                    //             break;
+                    //         }
+                    //         default:
+                    //             LOG(ERROR) << "can not reach here!";
+                    //             // 当更新数据库失败时，有可能进入这里
+                    //             return kErrCodeInternalError;
+                    //     }
+                    // }
+                    //对于同步创建的快照，不存在任务和进度的概念
+                    info->emplace_back(snap, 1);
                     break;
                 }
                 default:
@@ -312,37 +344,38 @@ int SnapshotServiceManager::GetSnapshotListInner(
                 case Status::deleting:
                 case Status::errorDeleting:
                 case Status::pending: {
-                    UUID uuid = snap.GetUuid();
-                    std::shared_ptr<SnapshotTask> task =
-                        taskMgr_->GetTask(uuid);
-                    if (task != nullptr) {
-                        info->emplace_back(snap,
-                            task->GetTaskInfo()->GetProgress());
-                    } else {
-                        // 刚刚完成
-                        SnapshotInfo newInfo;
-                        ret = core_->GetSnapshotInfo(uuid, &newInfo);
-                        if (ret < 0) {
-                            LOG(ERROR) << "GetSnapshotInfo fail"
-                                       << ", ret = " << ret
-                                       << ", uuid = " << uuid;
-                            return ret;
-                        }
-                        switch (newInfo.GetStatus()) {
-                            case Status::done: {
-                                info->emplace_back(newInfo, 100);
-                                break;
-                            }
-                            case Status::error: {
-                                info->emplace_back(newInfo, 0);
-                                break;
-                            }
-                            default:
-                                LOG(ERROR) << "can not reach here!";
-                                // 当更新数据库失败时，有可能进入这里
-                                return kErrCodeInternalError;
-                        }
-                    }
+                    // UUID uuid = snap.GetUuid();
+                    // std::shared_ptr<SnapshotTask> task =
+                    //     taskMgr_->GetTask(uuid);
+                    // if (task != nullptr) {
+                    //     info->emplace_back(snap,
+                    //         task->GetTaskInfo()->GetProgress());
+                    // } else {
+                    //     // 刚刚完成
+                    //     SnapshotInfo newInfo;
+                    //     ret = core_->GetSnapshotInfo(uuid, &newInfo);
+                    //     if (ret < 0) {
+                    //         LOG(ERROR) << "GetSnapshotInfo fail"
+                    //                    << ", ret = " << ret
+                    //                    << ", uuid = " << uuid;
+                    //         return ret;
+                    //     }
+                    //     switch (newInfo.GetStatus()) {
+                    //         case Status::done: {
+                    //             info->emplace_back(newInfo, 100);
+                    //             break;
+                    //         }
+                    //         case Status::error: {
+                    //             info->emplace_back(newInfo, 0);
+                    //             break;
+                    //         }
+                    //         default:
+                    //             LOG(ERROR) << "can not reach here!";
+                    //             // 当更新数据库失败时，有可能进入这里
+                    //             return kErrCodeInternalError;
+                    //     }
+                    // }
+                    info->emplace_back(snap, 1);
                     break;
                 }
                 default:
@@ -377,6 +410,19 @@ int SnapshotServiceManager::RecoverSnapshotTask() {
     for (auto &snap : list) {
         Status st = snap.GetStatus();
         switch (st) {
+            case Status::pending: {
+                std::shared_ptr<SnapshotTaskInfo> taskInfo =
+                    std::make_shared<SnapshotTaskInfo>(snap, nullptr);
+                LOG(INFO) << "Find pending snapshot when RecoverSnapshotTask, uuid = " << taskInfo->GetUuid()
+                          << ", ready to HandleCreateSyncSnapshotError" ;
+                ret = core_->HandleCreateSyncSnapshotError(taskInfo);
+                if(ret < 0 ) {
+                    LOG(ERROR) << "HandleCreateSyncSnapshotError failed, ret = " << ret
+                               << ", uuid = " << taskInfo->GetUuid(); 
+                }
+                break;
+            }
+            /*
             case Status::pending : {
                 auto snapInfoMetric =
                     std::make_shared<SnapshotInfoMetric>(snap.GetUuid());
@@ -398,6 +444,7 @@ int SnapshotServiceManager::RecoverSnapshotTask() {
                 }
                 break;
             }
+            */
             // 重启恢复的canceling等价于errorDeleting
             case Status::canceling :
             case Status::deleting :

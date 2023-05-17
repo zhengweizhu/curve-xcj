@@ -94,6 +94,21 @@ class SnapshotCore {
         SnapshotInfo *snapInfo) = 0;
 
     /**
+     * @brief 创建同步快照前置操作(多层秒级快照的创建快照方式采用同步，而非异步任务方式)
+     *
+     * @param file 文件名
+     * @param user 用户名
+     * @param snapshotName 快照名
+     * @param[out] snapInfo 快照信息
+     *
+     * @return 错误码
+     */
+    virtual int CreateSyncSnapshotPre(const std::string &file,
+        const std::string &user,
+        const std::string &snapshotName,
+        SnapshotInfo *snapInfo) = 0;
+
+    /**
      * @brief 执行创建快照任务并更新progress
      * 第一步，构建快照文件映射, put MateObj
      * 第二步，从curvefs读取chunk文件，并put DataObj
@@ -104,6 +119,16 @@ class SnapshotCore {
      */
     virtual void HandleCreateSnapshotTask(
         std::shared_ptr<SnapshotTaskInfo> task) = 0;
+
+    /**
+     * @brief 同步执行创建秒级快照任务
+     *
+     * @param task 快照任务信息
+     * @return 错误码,创建curvefs快照和更新metaStore成功才返回success
+     */
+    virtual int HandleCreateSyncSnapshotTask(
+        std::shared_ptr<SnapshotTaskInfo> task) = 0;
+        
 
     /**
      * @brief 删除快照前置操作
@@ -166,6 +191,15 @@ class SnapshotCore {
      */
     virtual int HandleCancelScheduledSnapshotTask(
         std::shared_ptr<SnapshotTaskInfo> task) = 0;
+
+    /**
+     * @brief 处理创建同步快照任务失败过程
+     *
+     * @param task 快照任务信息
+     * @return 错误码
+     */
+    virtual int HandleCreateSyncSnapshotError(
+        std::shared_ptr<SnapshotTaskInfo> task) = 0;
 };
 
 class SnapshotCoreImpl : public SnapshotCore {
@@ -212,7 +246,14 @@ class SnapshotCoreImpl : public SnapshotCore {
         const std::string &snapshotName,
         SnapshotInfo *snapInfo) override;
 
+    int CreateSyncSnapshotPre(const std::string &file,
+        const std::string &user,
+        const std::string &snapshotName,
+        SnapshotInfo *snapInfo) override;
+
     void HandleCreateSnapshotTask(
+        std::shared_ptr<SnapshotTaskInfo> task) override;
+    int HandleCreateSyncSnapshotTask(
         std::shared_ptr<SnapshotTaskInfo> task) override;
 
     int DeleteSnapshotPre(UUID uuid,
@@ -235,6 +276,9 @@ class SnapshotCoreImpl : public SnapshotCore {
         std::shared_ptr<SnapshotTaskInfo> task) override;
 
     int HandleCancelScheduledSnapshotTask(
+        std::shared_ptr<SnapshotTaskInfo> task) override;
+
+    int HandleCreateSyncSnapshotError(
         std::shared_ptr<SnapshotTaskInfo> task) override;
 
  private:
@@ -401,6 +445,15 @@ class SnapshotCoreImpl : public SnapshotCore {
      * @return 错误码
      */
     int ClearErrorSnapBeforeCreateSnapshot(
+        std::shared_ptr<SnapshotTaskInfo> task);
+
+    /**
+     * @brief 创建同步快照前尝试清理失败的快照，否则返回失败
+     *
+     * @param task 快照任务信息
+     * @return 错误码
+     */
+    int ClearErrorSnapBeforeCreateSyncSnapshot(
         std::shared_ptr<SnapshotTaskInfo> task);
 
  private:

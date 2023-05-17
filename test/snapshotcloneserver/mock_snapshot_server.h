@@ -56,6 +56,15 @@ class MockSnapshotCore : public SnapshotCore {
     MOCK_METHOD1(HandleCreateSnapshotTask,
         void(std::shared_ptr<SnapshotTaskInfo> task));
 
+    MOCK_METHOD4(CreateSyncSnapshotPre,
+        int(const std::string &file,
+        const std::string &user,
+        const std::string &snapshotName,
+        SnapshotInfo *snapInfo));
+
+    MOCK_METHOD1(HandleCreateSyncSnapshotTask,
+        int(std::shared_ptr<SnapshotTaskInfo> task));
+
     MOCK_METHOD4(DeleteSnapshotPre,
         int(UUID uuid,
         const std::string &user,
@@ -79,6 +88,9 @@ class MockSnapshotCore : public SnapshotCore {
         int(std::shared_ptr<SnapshotTaskInfo> task));
 
     MOCK_METHOD1(HandleCancelScheduledSnapshotTask,
+                 int(std::shared_ptr<SnapshotTaskInfo> task));
+
+    MOCK_METHOD1(HandleCreateSyncSnapshotError,
                  int(std::shared_ptr<SnapshotTaskInfo> task));
 };
 
@@ -270,6 +282,12 @@ class MockSnapshotServiceManager : public SnapshotServiceManager {
      SnapshotServiceManager(nullptr, nullptr) {}
     ~MockSnapshotServiceManager() {}
     MOCK_METHOD4(CreateSnapshot,
+        int(const std::string &file,
+        const std::string &user,
+        const std::string &desc,
+        UUID *uuid));
+
+    MOCK_METHOD4(CreateSyncSnapshot,
         int(const std::string &file,
         const std::string &user,
         const std::string &desc,

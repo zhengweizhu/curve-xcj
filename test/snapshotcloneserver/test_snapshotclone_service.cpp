@@ -86,7 +86,11 @@ TEST_F(TestSnapshotCloneServiceImpl, TestCreateSnapShotSuccess) {
     std::string file = "test";
     std::string snapName = "snap1";
 
-    EXPECT_CALL(*snapshotManager_, CreateSnapshot(file, user, snapName, _))
+    // EXPECT_CALL(*snapshotManager_, CreateSnapshot(file, user, snapName, _))
+    //     .WillOnce(DoAll(
+    //                 SetArgPointee<3>(uuid),
+    //                 Return(kErrCodeSuccess)));
+    EXPECT_CALL(*snapshotManager_, CreateSyncSnapshot(file, user, snapName, _))
         .WillOnce(DoAll(
                     SetArgPointee<3>(uuid),
                     Return(kErrCodeSuccess)));
@@ -665,7 +669,12 @@ TEST_F(TestSnapshotCloneServiceImpl, TestCreateSnapShotFail) {
     std::string file = "test";
     std::string snapName = "snap1";
 
-    EXPECT_CALL(*snapshotManager_, CreateSnapshot(file, user, snapName, _))
+    // EXPECT_CALL(*snapshotManager_, CreateSnapshot(file, user, snapName, _))
+    //     .WillOnce(DoAll(
+    //                 SetArgPointee<3>(uuid),
+    //                 Return(kErrCodeInternalError)));
+
+    EXPECT_CALL(*snapshotManager_, CreateSyncSnapshot(file, user, snapName, _))
         .WillOnce(DoAll(
                     SetArgPointee<3>(uuid),
                     Return(kErrCodeInternalError)));
