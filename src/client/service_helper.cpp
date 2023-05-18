@@ -382,6 +382,8 @@ bool ServiceHelper::GetSnapSeqFromFilename(const std::string& filename,
     std::string snapStr = filename.substr(snapPos + 1);
     sn = std::stoul(snapStr);
     *realfilename = filename.substr(0, snapPos);
+    if (sn == 0)
+        return false;
     return true;
 }
 

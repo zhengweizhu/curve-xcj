@@ -197,7 +197,7 @@ int IOManager4File::AioReadSnapshot(CurveAioContext* ctx, MDSClient* mdsclient,
     if (temp == nullptr) {
         ctx->ret = -LIBCURVE_ERROR::FAILED;
         ctx->cb(ctx);
-        LOG(ERROR) << "allocate tracker failed!";
+        LOG(ERROR) << "allocate tracker for AioReadSnapshot failed!";
         return LIBCURVE_ERROR::OK;
     }
 

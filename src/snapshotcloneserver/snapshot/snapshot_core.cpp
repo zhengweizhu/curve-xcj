@@ -487,7 +487,7 @@ int SnapshotCoreImpl::ClearErrorSnapBeforeCreateSyncSnapshot(
                       << "uuid = " << taskInfo->GetUuid()
                       << ", ready to HandleCreateSyncSnapshotError" ;
             int ret = HandleCreateSyncSnapshotError(taskInfo);
-            if(ret < 0 ) {
+            if (ret < 0 ) {
                 LOG(ERROR) << "HandleCreateSyncSnapshotError failed, ret = " << ret
                             << ", uuid = " << taskInfo->GetUuid(); 
                 return kErrCodeSnapshotCannotCreateWhenError;
@@ -665,7 +665,7 @@ int SnapshotCoreImpl::HandleCreateSyncSnapshotError(
     
     // 成功删除curvefs快照后，再清除metaStore上的快照记录
     ret = metaStore_->DeleteSnapshot(task->GetUuid());
-    if(ret < 0 ) {
+    if (ret < 0 ) {
         LOG(ERROR) << "MetaStore DeleteSnapshot error "
                     << "while CreateSyncSnapshot, "
                     << "ret = " << ret

@@ -145,9 +145,6 @@ int FileInstance::Open(const std::string& filename,
     LeaseSession_t  lease;
     int ret = LIBCURVE_ERROR::FAILED;
 
-    if(GetReadSnapshotSn()) {
-        finfo_.snapSeqnum = GetReadSnapshotSn();
-    }
     FileEpoch_t fEpoch;
     ret = mdsclient_->OpenFile(filename, finfo_.userinfo,
         &finfo_, &fEpoch, &lease);

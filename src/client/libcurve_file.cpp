@@ -196,7 +196,7 @@ int FileClient::Open(const std::string& filename,
     uint64_t sn = 0;
     std::string realfilename = filename;
     bool isSnapshot = curve::client::ServiceHelper::GetSnapSeqFromFilename(filename, sn, &realfilename);
-    if(isSnapshot) {
+    if (isSnapshot) {
         LOG(INFO) << "Opening Snapshot sn: " << sn << ", realfilename: " << realfilename;
     }
 
@@ -208,7 +208,7 @@ int FileClient::Open(const std::string& filename,
         return -1;
     }
 
-    if(isSnapshot) {
+    if (isSnapshot) {
         fileserv->SetReadSnapshotSn(sn);
     }
 
@@ -226,7 +226,8 @@ int FileClient::Open(const std::string& filename,
     {
         WriteLockGuard lk(rwlock_);
         fileserviceMap_[fd] = fileserv;
-        fileserviceFileNameMap_[realfilename] = fileserv;
+        if (!isSnapshot)  // As there is no need for snapshot to IncreaseEpoch
+            fileserviceFileNameMap_[realfilename] = fileserv;
     }
 
     LOG(INFO) << "Open success, filname = " << realfilename << ", fd = " << fd;
@@ -237,6 +238,13 @@ int FileClient::Open(const std::string& filename,
 
 int FileClient::Open4ReadOnly(const std::string& filename,
                               const UserInfo_t& userinfo, bool disableStripe) {
+    uint64_t sn = 0;
+    std::string realfilename;
+    bool isSnapshot = curve::client::ServiceHelper::GetSnapSeqFromFilename(filename, sn, &realfilename);
+    if (isSnapshot) {
+        LOG(INFO) << "Open4ReadOnly Snapshot not allowed, sn: " << sn << ", realfilename: " << realfilename;
+        return -LIBCURVE_ERROR::NOT_SUPPORT;
+    }
     FileInstance* instance = FileInstance::Open4Readonly(
         clientconfig_.GetFileServiceOption(), mdsClient_, filename, userinfo);
 
@@ -265,6 +273,14 @@ int FileClient::Open4ReadOnly(const std::string& filename,
 int FileClient::IncreaseEpoch(const std::string& filename,
                               const UserInfo_t& userinfo) {
     LOG(INFO) << "IncreaseEpoch, filename: " << filename;
+    uint64_t sn = 0;
+    std::string realfilename;
+    bool isSnapshot = curve::client::ServiceHelper::GetSnapSeqFromFilename(filename, sn, &realfilename);
+    if (isSnapshot) {
+        LOG(INFO) << "IncreaseEpoch Snapshot not allowed, sn: " << sn << ", realfilename: " << realfilename;
+        return -LIBCURVE_ERROR::NOT_SUPPORT;
+    } 
+
     FInfo_t fi;
     FileEpoch_t fEpoch;
     std::list<CopysetPeerInfo> csLocs;
@@ -437,9 +453,9 @@ int FileClient::Extend(const std::string& filename,
     const UserInfo_t& userinfo, uint64_t newsize) {
     LIBCURVE_ERROR ret;
     uint64_t sn = 0;
-    std::string realfilename = filename;
+    std::string realfilename;
     bool isSnapshot = curve::client::ServiceHelper::GetSnapSeqFromFilename(filename, sn, &realfilename);
-    if(isSnapshot) {
+    if (isSnapshot) {
         LOG(INFO) << "Extend Snapshot not allowed, sn: " << sn << ", realfilename: " << realfilename;
         return -LIBCURVE_ERROR::NOT_SUPPORT;
     }  
@@ -460,9 +476,9 @@ int FileClient::Unlink(const std::string& filename,
     const UserInfo_t& userinfo, bool deleteforce) {
     LIBCURVE_ERROR ret;
     uint64_t sn = 0;
-    std::string realfilename = filename;
+    std::string realfilename;
     bool isSnapshot = curve::client::ServiceHelper::GetSnapSeqFromFilename(filename, sn, &realfilename);
-    if(isSnapshot) {
+    if (isSnapshot) {
         LOG(INFO) << "Unlink Snapshot not allowed, sn: " << sn << ", realfilename: " << realfilename;
         return -LIBCURVE_ERROR::NOT_SUPPORT;
     }  
@@ -487,7 +503,7 @@ int FileClient::StatFile(const std::string& filename,
     uint64_t sn = 0;
     std::string realfilename = filename;
     bool isSnapshot = curve::client::ServiceHelper::GetSnapSeqFromFilename(filename, sn, &realfilename);
-    if(isSnapshot) {
+    if (isSnapshot) {
         LOG(INFO) << "StatFile Snapshot sn: " << sn << ", realfilename: " << realfilename;
     }    
     if (mdsClient_ != nullptr) {

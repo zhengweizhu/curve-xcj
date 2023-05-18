@@ -170,20 +170,8 @@ void LeaseExecutor::CheckNeedUpdateFileInfo(const FInfo& fileInfo) {
         metaCache->SetLatestFileSn(newSn);
     }
 
-    auto vector2Str = [] (const std::vector<uint64_t>& vec) {
-        std::string str;
-        std::for_each(vec.begin(),vec.end(), [&] (uint64_t seq) {
-            str.append(std::to_string(seq));
-            str.append(",");
-        });
-        if(str.length() > 0) {
-            str.pop_back();
-        }
-        return str;
-    };
-
-    std::string currentSnaps = vector2Str(metaCache->GetLatestSnaps());
-    std::string newSnaps = vector2Str(fileInfo.snaps);
+    std::string currentSnaps = Snaps2Str(metaCache->GetLatestSnaps());
+    std::string newSnaps = Snaps2Str(fileInfo.snaps);
     if(newSnaps != currentSnaps) {
         LOG(INFO) << "Update snaps, new snaps = " << newSnaps
                   << ", current snaps = " << currentSnaps 

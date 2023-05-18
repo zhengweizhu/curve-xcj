@@ -375,6 +375,7 @@ int SnapshotServiceManager::GetSnapshotListInner(
                     //             return kErrCodeInternalError;
                     //     }
                     // }
+                    //对于同步创建的快照，不存在任务和进度的概念
                     info->emplace_back(snap, 1);
                     break;
                 }
@@ -410,13 +411,15 @@ int SnapshotServiceManager::RecoverSnapshotTask() {
     for (auto &snap : list) {
         Status st = snap.GetStatus();
         switch (st) {
+            // 创建快照改为同步之后，重启程序发现状态为pending的快照记录，
+            // 则用户必然未收到快照创建成功的响应，因此要回滚删除快照记录。
             case Status::pending: {
                 std::shared_ptr<SnapshotTaskInfo> taskInfo =
                     std::make_shared<SnapshotTaskInfo>(snap, nullptr);
                 LOG(INFO) << "Find pending snapshot when RecoverSnapshotTask, uuid = " << taskInfo->GetUuid()
                           << ", ready to HandleCreateSyncSnapshotError" ;
-                ret = core_->HandleCreateSyncSnapshotError(taskInfo);
-                if(ret < 0 ) {
+                ret = core_->HandleCreateSyncSnapshotError(taskInfo); // does not guarantee success
+                if (ret < 0 ) {
                     LOG(ERROR) << "HandleCreateSyncSnapshotError failed, ret = " << ret
                                << ", uuid = " << taskInfo->GetUuid(); 
                 }

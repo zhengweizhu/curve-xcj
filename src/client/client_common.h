@@ -349,6 +349,18 @@ inline std::ostream& operator<<(std::ostream& os, const OpenFlags& flags) {
 // default flags for readonly open
 OpenFlags DefaultReadonlyOpenFlags();
 
+inline std::string Snaps2Str(const std::vector<uint64_t>& snaps) {
+    std::string str;
+    std::for_each(snaps.begin(),snaps.end(), [&] (uint64_t seq) {
+        str.append(std::to_string(seq));
+        str.append(",");
+    });
+    if(str.length() > 0) {
+        str.pop_back();
+    }
+    return str;
+}
+
 }   // namespace client
 }   // namespace curve
 
