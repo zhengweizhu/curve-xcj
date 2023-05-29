@@ -143,11 +143,13 @@ class SnapshotClient {
    * @param: userinfo是用户信息
    * @param: filenam文件名
    * @param: seq是文件版本号信息
+   * @param: 当快照为deleting状态时，progress表示删除进度（0到100）
    */
   int CheckSnapShotStatus(const std::string& filename,
                                 const UserInfo_t& userinfo,
                                 uint64_t seq,
-                                FileStatus* filestatus);
+                                FileStatus* filestatus,
+                                uint32_t* progress = nullptr);
   /**
    * @brief 创建clone文件
    * @detail

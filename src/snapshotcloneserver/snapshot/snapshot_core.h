@@ -148,11 +148,36 @@ class SnapshotCore {
         SnapshotInfo *snapInfo) = 0;
 
     /**
+     * @brief 删除同步快照前置操作
+     * 更新数据库中的快照记录为deleting状态
+     *
+     * @param uuid 快照uuid
+     * @param user 用户名
+     * @param fileName 文件名
+     * @param[out] snapInfo 快照信息
+     *
+     * @return 错误码
+     */
+    virtual int DeleteSyncSnapshotPre(
+        UUID uuid,
+        const std::string &user,
+        const std::string &fileName,
+        SnapshotInfo *snapInfo) = 0;
+
+    /**
      * @brief 执行删除快照任务并更新progress
      *
      * @param task 快照任务信息
      */
     virtual void HandleDeleteSnapshotTask(
+        std::shared_ptr<SnapshotTaskInfo> task) = 0;
+
+    /**
+     * @brief 执行删除本地同步快照任务并更新progress
+     *
+     * @param task 快照任务信息
+     */
+    virtual void HandleDeleteSyncSnapshotTask(
         std::shared_ptr<SnapshotTaskInfo> task) = 0;
 
     /**
@@ -190,15 +215,6 @@ class SnapshotCore {
      *         else return kErrCodeInternalError
      */
     virtual int HandleCancelScheduledSnapshotTask(
-        std::shared_ptr<SnapshotTaskInfo> task) = 0;
-
-    /**
-     * @brief 处理创建同步快照任务失败过程
-     *
-     * @param task 快照任务信息
-     * @return 错误码
-     */
-    virtual int HandleCreateSyncSnapshotError(
         std::shared_ptr<SnapshotTaskInfo> task) = 0;
 };
 
@@ -253,6 +269,7 @@ class SnapshotCoreImpl : public SnapshotCore {
 
     void HandleCreateSnapshotTask(
         std::shared_ptr<SnapshotTaskInfo> task) override;
+        
     int HandleCreateSyncSnapshotTask(
         std::shared_ptr<SnapshotTaskInfo> task) override;
 
@@ -261,7 +278,15 @@ class SnapshotCoreImpl : public SnapshotCore {
         const std::string &fileName,
         SnapshotInfo *snapInfo) override;
 
+    int DeleteSyncSnapshotPre(UUID uuid,
+        const std::string &user,
+        const std::string &fileName,
+        SnapshotInfo *snapInfo) override;
+
     void HandleDeleteSnapshotTask(
+        std::shared_ptr<SnapshotTaskInfo> task) override;
+
+    void HandleDeleteSyncSnapshotTask(
         std::shared_ptr<SnapshotTaskInfo> task) override;
 
     int GetFileSnapshotInfo(const std::string &file,
@@ -276,9 +301,6 @@ class SnapshotCoreImpl : public SnapshotCore {
         std::shared_ptr<SnapshotTaskInfo> task) override;
 
     int HandleCancelScheduledSnapshotTask(
-        std::shared_ptr<SnapshotTaskInfo> task) override;
-
-    int HandleCreateSyncSnapshotError(
         std::shared_ptr<SnapshotTaskInfo> task) override;
 
  private:
@@ -325,10 +347,11 @@ class SnapshotCoreImpl : public SnapshotCore {
      * @brief 删除curvefs上的快照
      *
      * @param info 快照信息
-     *
+     * @param task 快照删除任务，用于更新删除进度
+     * 
      * @return 错误码
      */
-    int DeleteSnapshotOnCurvefs(const SnapshotInfo &info);
+    int DeleteSnapshotOnCurvefs(const SnapshotInfo &info, std::shared_ptr<SnapshotTaskInfo> task = nullptr);
 
     /**
      * @brief 构建索引块
@@ -445,15 +468,6 @@ class SnapshotCoreImpl : public SnapshotCore {
      * @return 错误码
      */
     int ClearErrorSnapBeforeCreateSnapshot(
-        std::shared_ptr<SnapshotTaskInfo> task);
-
-    /**
-     * @brief 创建同步快照前尝试清理失败的快照，否则返回失败
-     *
-     * @param task 快照任务信息
-     * @return 错误码
-     */
-    int ClearErrorSnapBeforeCreateSyncSnapshot(
         std::shared_ptr<SnapshotTaskInfo> task);
 
  private:

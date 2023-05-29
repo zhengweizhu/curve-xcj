@@ -164,9 +164,10 @@ int SnapshotClient::GetServerList(const LogicPoolID& lpid,
 int SnapshotClient::CheckSnapShotStatus(const std::string& filename,
                                         const UserInfo_t& userinfo,
                                         uint64_t seq,
-                                        FileStatus* filestatus) {
+                                        FileStatus* filestatus,
+                                        uint32_t* progress) {
     LIBCURVE_ERROR ret = mdsclient_.CheckSnapShotStatus(filename, userinfo,
-                                                        seq, filestatus);
+                                                        seq, filestatus, progress);
     return -ret;
 }
 

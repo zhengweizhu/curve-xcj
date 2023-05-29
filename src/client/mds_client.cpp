@@ -764,7 +764,8 @@ LIBCURVE_ERROR MDSClient::RefreshSession(const std::string& filename,
 LIBCURVE_ERROR MDSClient::CheckSnapShotStatus(const std::string& filename,
                                               const UserInfo_t& userinfo,
                                               uint64_t seq,
-                                              FileStatus* filestatus) {
+                                              FileStatus* filestatus,
+                                              uint32_t* progress) {
     auto task = RPCTaskDefine {
         CheckSnapShotStatusResponse response;
         MDSClientBase::CheckSnapShotStatus(filename, userinfo, seq,
@@ -780,6 +781,11 @@ LIBCURVE_ERROR MDSClient::CheckSnapShotStatus(const std::string& filename,
         bool good = response.has_filestatus() && filestatus != nullptr;
         if (good) {
             *filestatus = static_cast<FileStatus>(response.filestatus());
+        }
+
+        good = response.has_progress() && progress != nullptr;
+        if (good) {
+            *progress = response.progress();
         }
 
         LIBCURVE_ERROR retcode;

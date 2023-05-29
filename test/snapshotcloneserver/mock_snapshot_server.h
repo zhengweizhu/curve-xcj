@@ -71,7 +71,16 @@ class MockSnapshotCore : public SnapshotCore {
         const std::string &fileName,
         SnapshotInfo *snapInfo));
 
+    MOCK_METHOD4(DeleteSyncSnapshotPre,
+        int(UUID uuid,
+        const std::string &user,
+        const std::string &fileName,
+        SnapshotInfo *snapInfo));
+
     MOCK_METHOD1(HandleDeleteSnapshotTask,
+        void(std::shared_ptr<SnapshotTaskInfo> task));
+
+    MOCK_METHOD1(HandleDeleteSyncSnapshotTask,
         void(std::shared_ptr<SnapshotTaskInfo> task));
 
     MOCK_METHOD2(GetFileSnapshotInfo,
@@ -88,9 +97,6 @@ class MockSnapshotCore : public SnapshotCore {
         int(std::shared_ptr<SnapshotTaskInfo> task));
 
     MOCK_METHOD1(HandleCancelScheduledSnapshotTask,
-                 int(std::shared_ptr<SnapshotTaskInfo> task));
-
-    MOCK_METHOD1(HandleCreateSyncSnapshotError,
                  int(std::shared_ptr<SnapshotTaskInfo> task));
 };
 
@@ -195,11 +201,12 @@ class MockCurveFsClient : public CurveFsClient {
         int(const ChunkIDInfo &cidinfo,
         uint64_t correctedSeq));
 
-    MOCK_METHOD4(CheckSnapShotStatus,
+    MOCK_METHOD5(CheckSnapShotStatus,
         int(std::string filename,
         std::string user,
         uint64_t seq,
-        FileStatus* filestatus));
+        FileStatus* filestatus,
+        uint32_t* progress));
 
     MOCK_METHOD2(GetChunkInfo,
         int(const ChunkIDInfo &cidinfo,

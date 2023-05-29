@@ -228,6 +228,19 @@ class SnapshotServiceManager {
         const std::string &file);
 
     /**
+     * @brief 删除本地快照服务（异步删除以同步方式创建的本地多层秒级快照）
+     *
+     * @param uuid 快照uuid
+     * @param user 快照文件的用户
+     * @param file 快照所属文件的文件名
+     *
+     * @return 错误码
+     */
+    virtual int DeleteSyncSnapshot(const UUID &uuid,
+        const std::string &user,
+        const std::string &file);
+
+    /**
      * @brief 取消快照服务
      *
      * @param uuid 快照的uuid

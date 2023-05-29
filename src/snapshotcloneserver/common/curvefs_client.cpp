@@ -142,12 +142,13 @@ int CurveFsClientImpl::ReadChunkSnapshot(ChunkIDInfo cidinfo,
 int CurveFsClientImpl::CheckSnapShotStatus(std::string filename,
                         std::string user,
                         uint64_t seq,
-                        FileStatus* filestatus) {
+                        FileStatus* filestatus,
+                        uint32_t* progress) {
     UserInfo userInfo = GetUserInfo(user);
-    RetryMethod method = [this, &filename, &userInfo, seq, filestatus] () {
+    RetryMethod method = [this, &filename, &userInfo, seq, filestatus, progress] () {
         return snapClient_->CheckSnapShotStatus(filename,
             userInfo,
-            seq, filestatus);
+            seq, filestatus, progress);
     };
     RetryCondition condition = [] (int ret) {
         return ret != LIBCURVE_ERROR::OK &&

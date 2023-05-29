@@ -997,7 +997,7 @@ TEST_F(TestSnapshotServiceManager, TestRecoverSnapshotTaskSuccess) {
         .WillOnce(DoAll(SetArgPointee<0>(list),
                     Return(kErrCodeSuccess)));
 
-    CountDownEvent cond1(1);
+    CountDownEvent cond1(2);
 
     // EXPECT_CALL(*core_, HandleCreateSnapshotTask(_))
     //     .WillOnce(Invoke([&cond1] (std::shared_ptr<SnapshotTaskInfo> task) {
@@ -1005,11 +1005,9 @@ TEST_F(TestSnapshotServiceManager, TestRecoverSnapshotTaskSuccess) {
     //                         task->Finish();
     //                         cond1.Signal();
     //             }));
-    EXPECT_CALL(*core_, HandleCreateSyncSnapshotError(_))
-        .WillOnce(Return(kErrCodeSuccess));
 
-    EXPECT_CALL(*core_, HandleDeleteSnapshotTask(_))
-        .WillOnce(Invoke([&cond1] (std::shared_ptr<SnapshotTaskInfo> task) {
+    EXPECT_CALL(*core_, HandleDeleteSyncSnapshotTask(_)).Times(2)
+        .WillRepeatedly(Invoke([&cond1] (std::shared_ptr<SnapshotTaskInfo> task) {
             task->GetSnapshotInfo().SetStatus(Status::done);
                             task->Finish();
                             cond1.Signal();
@@ -1025,7 +1023,7 @@ TEST_F(TestSnapshotServiceManager, TestRecoverSnapshotTaskSuccess) {
 
     ASSERT_EQ(0, snapshotMetric_->snapshotWaiting.get_value());
     ASSERT_EQ(0, snapshotMetric_->snapshotDoing.get_value());
-    ASSERT_EQ(1, snapshotMetric_->snapshotSucceed.get_value());
+    ASSERT_EQ(2, snapshotMetric_->snapshotSucceed.get_value());
     ASSERT_EQ(0, snapshotMetric_->snapshotFailed.get_value());
 }
 

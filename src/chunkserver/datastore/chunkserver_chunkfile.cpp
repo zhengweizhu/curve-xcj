@@ -319,11 +319,7 @@ CSErrorCode CSChunkFile::Write(SequenceNum sn,
                      << ",correctedSn: " << metaPage_.correctedSn;
         return CSErrorCode::BackwardRequestError;
     }
-    if (snapshots_->getCurrentSn() != 0 && ctx->empty()) {
-        LOG(ERROR) << "Exists old snapshot sn: " << snapshots_->getCurrentSn()
-                   << ", but snapshot context is empty.";
-        return CSErrorCode::SnapshotConflictError;
-    }
+
     // Determine whether to create a snapshot file
     if (needCreateSnapshot(sn, ctx)) {
         CSErrorCode err = createSnapshot(ctx->getLatest());

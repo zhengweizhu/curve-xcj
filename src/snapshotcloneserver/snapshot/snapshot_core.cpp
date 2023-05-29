@@ -133,6 +133,23 @@ int SnapshotCoreImpl::CreateSyncSnapshotPre(const std::string &file,
     NameLockGuard lockGuard(snapshotNameLock_, file);
     std::vector<SnapshotInfo> fileInfo;
     metaStore_->GetSnapshotList(file, &fileInfo);
+    for (auto& snap : fileInfo) {
+        // 1. Pending status means there existed an unfinished snapshot creation, and shall 
+        //    be cleaned first. 
+        // 2. Error status means something abnormal has happened, and shall be cleaned first.
+        // 3. In both cases, the snapshot in invalid status should be cleaned through recover
+        //    task when app starts up or manual deletion of the snapshot. The deletion process
+        //    may be time-consuming and should not be invoked in sync snapshot creation. 
+        if (snap.GetStatus() == Status::pending || snap.GetStatus() == Status::error) {
+            LOG(INFO) << "Can not create snapshot when finding snapshot with status =  " 
+                      << static_cast<int>(snap.GetStatus())
+                      << ", file = " << file
+                      << ", user = " << user
+                      << ", snapshotName = " << snapshotName
+                      << ", Exist SnapInfo : " << snap;
+            return kErrCodeSnapshotCannotCreateWhenError;
+        }
+    }
     int snapshotNum = fileInfo.size();
     if (snapshotNum >= maxSnapshotLimit_) {
         LOG(ERROR) << "Snapshot count reach the max limit.";
@@ -402,29 +419,21 @@ void SnapshotCoreImpl::HandleCreateSnapshotTask(
 
 /**
  * @brief 同步执行创建秒级快照任务，只需要创建curvefs快照，成功后
- *        更新快照状态为done记录到metaStore，任何一步失败都尝试删除
- *        curvefs快照和metaStore快照记录并返回用户失败
+ *        更新快照状态为done记录到metaStore，任何一步失败都返回失败，
+ *        并由上层负责删除快照任务的创建
  * @param task 快照信息
  * @return 错误码，创建curvefs快照和更新metaStore成功才返回success
  */
 int SnapshotCoreImpl::HandleCreateSyncSnapshotTask(
     std::shared_ptr<SnapshotTaskInfo> task) {
-    // 如果当前有失败的快照，需先清理失败的快照，否则返回失败
-    int ret = ClearErrorSnapBeforeCreateSyncSnapshot(task);
-    if (ret < 0) {
-        HandleCreateSyncSnapshotError(task);
-        return ret;
-    }
-
     std::string fileName = task->GetFileName();
     SnapshotInfo *info = &(task->GetSnapshotInfo());
-    ret = CreateSnapshotOnCurvefs(fileName, info, task);
+    int ret = CreateSnapshotOnCurvefs(fileName, info, task);
     if (ret < 0) {
         LOG(ERROR) << "CreateSnapshotOnCurvefs error, "
                    << " ret = " << ret
                    << ", fileName = " << fileName
                    << ", uuid = " << task->GetUuid();
-        HandleCreateSyncSnapshotError(task);
         return ret;
     }
 
@@ -434,7 +443,6 @@ int SnapshotCoreImpl::HandleCreateSyncSnapshotTask(
         LOG(ERROR) << "UpdateSnapshot to done fail,"
                    << " ret = " << ret
                    << ", uuid = " << task->GetUuid();
-        HandleCreateSyncSnapshotError(task);
         return ret;
     }
 
@@ -467,34 +475,6 @@ int SnapshotCoreImpl::ClearErrorSnapBeforeCreateSnapshot(
                            << ", error snapshot Id = " << snap.GetUuid()
                            << ", uuid = " << task->GetUuid();
 
-                return kErrCodeSnapshotCannotCreateWhenError;
-            }
-        }
-    }
-    return kErrCodeSuccess;
-}
-
-/**
- * brief: 1. 创建同步快照过程中出错则会清除快照记录（包括curvefs和metaStore的记录），
- *           若清除快照记录过程出错，则遗留状态为pending的快照记录到metaStore
- *        2. 在程序重启recover时会尝试清除遗留的快照记录
- *        3. 在收到创建快照请求时会要求清除遗留的快照记录，否则返回失败
-*/
-int SnapshotCoreImpl::ClearErrorSnapBeforeCreateSyncSnapshot(
-    std::shared_ptr<SnapshotTaskInfo> task) {
-    std::vector<SnapshotInfo> snapVec;
-    metaStore_->GetSnapshotList(task->GetFileName(), &snapVec);
-    for (auto& snap : snapVec) {
-        if (Status::pending == snap.GetStatus()) {
-            std::shared_ptr<SnapshotTaskInfo> taskInfo =
-                std::make_shared<SnapshotTaskInfo>(snap, nullptr);
-            LOG(INFO) << "Find pending snapshot when ClearErrorSnapBeforeCreateSyncSnapshot, "
-                      << "uuid = " << taskInfo->GetUuid()
-                      << ", ready to HandleCreateSyncSnapshotError" ;
-            int ret = HandleCreateSyncSnapshotError(taskInfo);
-            if (ret < 0 ) {
-                LOG(ERROR) << "HandleCreateSyncSnapshotError failed, ret = " << ret
-                            << ", uuid = " << taskInfo->GetUuid(); 
                 return kErrCodeSnapshotCannotCreateWhenError;
             }
         }
@@ -653,37 +633,6 @@ void SnapshotCoreImpl::HandleCreateSnapshotError(
     return;
 }
 
-int SnapshotCoreImpl::HandleCreateSyncSnapshotError(
-    std::shared_ptr<SnapshotTaskInfo> task) {
-    auto &snapInfo = task->GetSnapshotInfo();
-    // 创建同步快照过程出现任何失败，都删除该快照
-    // 可能出现的罕见情况是，curvefs快照创建成功，因为其它错误导致需要删除该快照时，
-    // 这期间发生了IO产生COW，为了防止删除耗时阻塞，删除快照接口应为异步接口
-    int ret = DeleteSnapshotOnCurvefs(snapInfo);
-    if (ret < 0) {
-        LOG(ERROR) << "DeleteSnapshotOnCurvefs fail"
-                   << ", uuid = " << task->GetUuid();
-        return ret;
-    }
-    LOG(INFO) << "DeleteSnapshotOnCurvefs success "
-              << ", uuid = " << task->GetUuid();
-    
-    // 成功删除curvefs快照后，再清除metaStore上的快照记录
-    ret = metaStore_->DeleteSnapshot(task->GetUuid());
-    if (ret < 0 ) {
-        LOG(ERROR) << "MetaStore DeleteSnapshot error "
-                    << "while CreateSyncSnapshot, "
-                    << "ret = " << ret
-                    << ", uuid = " << task->GetUuid();
-        return ret;
-    }
-    LOG(INFO) << "MetaStore DeleteSnapshot success  "
-                << "while CreateSyncSnapshot, "
-                << "uuid = " << task->GetUuid();
-    
-    return kErrCodeSuccess;
-}
-
 int SnapshotCoreImpl::CreateSnapshotOnCurvefs(
     const std::string &fileName,
     SnapshotInfo *info,
@@ -750,13 +699,13 @@ int SnapshotCoreImpl::CreateSnapshotOnCurvefs(
     }
 
     // 打完快照需等待2个session时间，以保证seq同步到所有client
-    std::this_thread::sleep_for(
-        std::chrono::microseconds(mdsSessionTimeUs_ * 2));
-
+    // 防止阻塞耗时影响同步接口返回，取消sleep
+    // std::this_thread::sleep_for(
+    //     std::chrono::microseconds(mdsSessionTimeUs_ * 2)); 
     return kErrCodeSuccess;
 }
 
-int SnapshotCoreImpl::DeleteSnapshotOnCurvefs(const SnapshotInfo &info) {
+int SnapshotCoreImpl::DeleteSnapshotOnCurvefs(const SnapshotInfo &info, std::shared_ptr<SnapshotTaskInfo> task) {
     std::string fileName = info.GetFileName();
     std::string user = info.GetUser();
     uint64_t seqNum = info.GetSeqNum();
@@ -776,15 +725,18 @@ int SnapshotCoreImpl::DeleteSnapshotOnCurvefs(const SnapshotInfo &info) {
     }
     do {
         FileStatus status;
+        uint32_t progress = 0;
         ret = client_->CheckSnapShotStatus(info.GetFileName(),
             info.GetUser(),
             seqNum,
-            &status);
+            &status,
+            &progress);
         LOG(INFO) << "Doing CheckSnapShotStatus, fileName = "
                   << info.GetFileName()
                   << ", user = " << info.GetUser()
                   << ", seqNum = " << seqNum
                   << ", status = " << static_cast<int>(status)
+                  << ", progress = " << progress
                   << ", uuid = " << info.GetUuid();
         // NOTEXIST means delete succeed.
         if (-LIBCURVE_ERROR::NOTEXIST == ret) {
@@ -798,6 +750,8 @@ int SnapshotCoreImpl::DeleteSnapshotOnCurvefs(const SnapshotInfo &info) {
                            << ", status = " << static_cast<int>(status)
                            << ", uuid = " << info.GetUuid();
                 return kErrCodeInternalError;
+            } else if (task != nullptr) {
+                task->SetProgress(progress);
             }
         } else {
             LOG(ERROR) << "CheckSnapShotStatus fail"
@@ -1112,11 +1066,66 @@ int SnapshotCoreImpl::DeleteSnapshotPre(
     return kErrCodeSuccess;
 }
 
+int SnapshotCoreImpl::DeleteSyncSnapshotPre(
+    UUID uuid,
+    const std::string &user,
+    const std::string &fileName,
+    SnapshotInfo *snapInfo) {
+    NameLockGuard lockSnapGuard(snapshotRef_->GetSnapshotLock(), uuid);
+    int ret = metaStore_->GetSnapshotInfo(uuid, snapInfo);
+    if (ret < 0) {
+        // 快照不存在时直接返回删除成功，使接口幂等
+        return kErrCodeSuccess;
+    }
+    if (snapInfo->GetUser() != user) {
+        LOG(ERROR) << "Can not delete snapshot by different user.";
+        return kErrCodeInvalidUser;
+    }
+    if ((!fileName.empty()) &&
+        (fileName != snapInfo->GetFileName())) {
+        LOG(ERROR) << "Can not delete, fileName is not matched.";
+        return kErrCodeFileNameNotMatch;
+    }
+
+    switch (snapInfo->GetStatus()) {
+        case Status::done:
+            snapInfo->SetStatus(Status::deleting);
+            break;
+        case Status::error:
+            snapInfo->SetStatus(Status::errorDeleting);
+            break;
+        case Status::canceling:
+        case Status::deleting:
+        case Status::errorDeleting:
+            return kErrCodeTaskExist;
+        case Status::pending:  // delete an unfinished snapshot
+            snapInfo->SetStatus(Status::deleting);
+            break;
+        default:
+            LOG(ERROR) << "Can not reach here!";
+            return kErrCodeInternalError;
+    }
+
+    if (snapshotRef_->GetSnapshotRef(uuid) > 0) {
+        return kErrCodeSnapshotCannotDeleteCloning;
+    }
+
+    ret = metaStore_->UpdateSnapshot(*snapInfo);
+    if (ret < 0) {
+        LOG(ERROR) << "UpdateSnapshot error,"
+                   << " ret = " << ret
+                   << ", uuid = " << uuid;
+        return ret;
+    }
+    return kErrCodeSuccess;
+}
+
 constexpr uint32_t kDelProgressBuildSnapshotMapComplete = 10;
 constexpr uint32_t kDelProgressDeleteChunkDataStart =
                        kDelProgressBuildSnapshotMapComplete;
 constexpr uint32_t kDelProgressDeleteChunkDataComplete = 80;
 constexpr uint32_t kDelProgressDeleteChunkIndexDataComplete = 90;
+constexpr uint32_t kDelProgressDeleteSnapshotOnCurvefsComplete = 99;
 
 /**
  * @brief 异步执行删除快照任务并更新任务进度
@@ -1252,6 +1261,63 @@ void SnapshotCoreImpl::HandleDeleteSnapshotTask(
     return;
 }
 
+/**
+ * @brief 异步执行删除本地快照任务并更新任务进度
+ *
+ * @param task 快照任务
+ */
+void SnapshotCoreImpl::HandleDeleteSyncSnapshotTask(
+    std::shared_ptr<SnapshotTaskInfo> task) {
+    SnapshotInfo &info = task->GetSnapshotInfo();
+    UUID uuid = task->GetUuid();
+    uint64_t seqNum = info.GetSeqNum();
+    LOG(INFO) << "HandleDeleteSyncSnapshotTask start, uuid = " << uuid
+              << ", seqNum = " << seqNum << ", snapshotName =  " << info.GetSnapshotName();
+    int ret = 0;
+    // Pending means unfinished creation and can be marked as deleting before deletion starts
+    if (Status::pending == info.GetStatus()) {
+        info.SetStatus(Status::deleting);
+        ret = metaStore_->UpdateSnapshot(info);
+        if (ret < 0) {
+            LOG(ERROR) << "UpdateSnapshot from pending to deleting error,"
+                    << " ret = " << ret
+                    << ", uuid = " << uuid;
+            HandleDeleteSnapshotError(task);
+            return;
+        }
+    }
+
+    ret = DeleteSnapshotOnCurvefs(info, task);
+    if (ret < 0) {
+        LOG(ERROR) << "DeleteSnapshotOnCurvefs fail"
+                    << ", uuid = " << task->GetUuid();
+        HandleDeleteSnapshotError(task);
+        return;
+    }
+
+    task->UpdateMetric(); // ?
+    ret = metaStore_->DeleteSnapshot(uuid);
+    if (ret < 0) {
+        LOG(ERROR) << "DeleteSnapshot error, "
+                   << " ret = " << ret
+                   << ", uuid = " << uuid;
+        HandleDeleteSnapshotError(task);
+        return;
+    }
+
+    task->SetProgress(kProgressComplete);
+    task->GetSnapshotInfo().SetStatus(Status::done);
+
+    auto &snapInfo = task->GetSnapshotInfo();
+    LOG(INFO) << "DeleteSyncSnapshot Task Success"
+              << ", uuid = " << snapInfo.GetUuid()
+              << ", fileName = " << snapInfo.GetFileName()
+              << ", snapshotName = " << snapInfo.GetSnapshotName()
+              << ", seqNum = " << snapInfo.GetSeqNum()
+              << ", createTime = " << snapInfo.GetCreateTime();
+    task->Finish();
+    return;
+}
 
 void SnapshotCoreImpl::HandleDeleteSnapshotError(
     std::shared_ptr<SnapshotTaskInfo> task) {
