@@ -547,6 +547,15 @@ void ReadChunkSnapClosure::OnSuccess() {
     reqCtx_->readData_ = cntl_->response_attachment();
 }
 
+void ReadChunkSnapClosure::OnChunkNotExist() {
+    ClientClosure::OnChunkNotExist();
+
+    reqDone_->SetFailed(0);
+    reqCtx_->readData_.resize(reqCtx_->rawlength_, 0);
+    metaCache_->UpdateAppliedIndex(chunkIdInfo_.lpid_, chunkIdInfo_.cpid_,
+                                   response_->appliedindex());
+}
+
 void DeleteChunkSnapClosure::SendRetryRequest() {
     client_->DeleteChunkSnapshotOrCorrectSn(
         reqCtx_->idinfo_,
