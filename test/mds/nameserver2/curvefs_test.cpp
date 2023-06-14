@@ -30,6 +30,7 @@
 
 #include "test/mds/nameserver2/mock/mock_namespace_storage.h"
 #include "test/mds/nameserver2/mock/mock_inode_id_generator.h"
+#include "test/mds/nameserver2/mock/mock_clone_id_generator.h"
 #include "test/mds/nameserver2/mock/mock_chunk_allocate.h"
 #include "test/mds/nameserver2/mock/mock_clean_manager.h"
 #include "test/mds/nameserver2/mock/mock_snapshotclone_client.h"
@@ -60,6 +61,7 @@ class CurveFSTest: public ::testing::Test {
         storage_ = std::make_shared<MockNameServerStorage>();
         inodeIdGenerator_ = std::make_shared<MockInodeIDGenerator>();
         mockChunkAllocator_ = std::make_shared<MockChunkAllocator>();
+        mockCloneIDGenerator_ = std::make_shared<MockCloneIDGenerator>();
 
         mockcleanManager_ = std::make_shared<MockCleanManager>();
         topology_ = std::make_shared<MockTopology>();
@@ -93,7 +95,9 @@ class CurveFSTest: public ::testing::Test {
             .WillOnce(DoAll(SetArgPointee<2>(fileInfo),
                 Return(StoreStatus::OK)));
 
-        curvefs_->Init(storage_, inodeIdGenerator_, mockChunkAllocator_,
+        curvefs_->Init(storage_, inodeIdGenerator_, 
+                        mockCloneIDGenerator_,
+                        mockChunkAllocator_,
                         mockcleanManager_,
                         fileRecordManager_,
                         allocStatistic_,
@@ -114,6 +118,7 @@ class CurveFSTest: public ::testing::Test {
     std::shared_ptr<MockNameServerStorage> storage_;
     std::shared_ptr<MockInodeIDGenerator> inodeIdGenerator_;
     std::shared_ptr<MockChunkAllocator> mockChunkAllocator_;
+    std::shared_ptr<MockCloneIDGenerator> mockCloneIDGenerator_;
 
     std::shared_ptr<MockCleanManager> mockcleanManager_;
     std::shared_ptr<MockFileRecordManager> fileRecordManager_;
@@ -3728,6 +3733,7 @@ TEST_F(CurveFSTest, Init) {
 
             ASSERT_EQ(testCases[i].ret, kCurveFS.Init(storage_,
                                                       inodeIdGenerator_,
+                                                      mockCloneIDGenerator_,
                                                       mockChunkAllocator_,
                                                       mockcleanManager_,
                                                       fileRecordManager_,
@@ -3746,6 +3752,7 @@ TEST_F(CurveFSTest, Init) {
 
         ASSERT_EQ(false, kCurveFS.Init(storage_,
                                        inodeIdGenerator_,
+                                       mockCloneIDGenerator_,
                                        mockChunkAllocator_,
                                        mockcleanManager_,
                                        fileRecordManager_,
@@ -3768,6 +3775,7 @@ TEST_F(CurveFSTest, Init) {
 
         ASSERT_EQ(false, kCurveFS.Init(storage_,
                                        inodeIdGenerator_,
+                                       mockCloneIDGenerator_,
                                        mockChunkAllocator_,
                                        mockcleanManager_,
                                        fileRecordManager_,
@@ -3794,6 +3802,7 @@ TEST_F(CurveFSTest, Init) {
 
         ASSERT_EQ(true, kCurveFS.Init(storage_,
                                       inodeIdGenerator_,
+                                      mockCloneIDGenerator_,
                                       mockChunkAllocator_,
                                       mockcleanManager_,
                                       fileRecordManager_,

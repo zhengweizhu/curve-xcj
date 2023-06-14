@@ -35,6 +35,7 @@
 #include "src/mds/nameserver2/helper/namespace_helper.h"
 
 using curve::common::TimeUtility;
+using curve::common::StringToUll;
 using curve::mds::topology::LogicalPool;
 using curve::mds::topology::LogicalPoolIdType;
 using curve::mds::topology::CopySetIdType;
@@ -51,6 +52,29 @@ ClientInfo EndPointToClientInfo(const butil::EndPoint& ep) {
     info.set_port(ep.port);
 
     return info;
+}
+
+const std::string kSnapshotPathSeprator = "/";
+const std::string kSnapshotSeqSeprator = "-";
+
+std::string MakeSnapshotName(const std::string &fileName, FileSeqType seq) {
+    return fileName + kSnapshotSeqSeprator + std::to_string(seq);
+}
+
+bool SplitSnapshotPath(const std::string &snapFilePath,
+    std::string *filePath, FileSeqType *seq) {
+    auto pos = snapFilePath.find_last_of(kSnapshotPathSeprator);
+    if (snapFilePath.npos == pos) {
+        return false;
+    }
+    *filePath = snapFilePath.substr(0, pos);
+    std::string snapFileName = snapFilePath.substr(pos + 1);
+    pos = snapFileName.find_last_of(kSnapshotSeqSeprator);
+    if (snapFileName.npos == pos) {
+        return false;
+    }
+    std::string seqStr = snapFileName.substr(pos + 1);
+    return StringToUll(seqStr, seq);
 }
 
 bool CurveFS::InitRecycleBinDir() {
@@ -98,6 +122,7 @@ bool CurveFS::InitRecycleBinDir() {
 
 bool CurveFS::Init(std::shared_ptr<NameServerStorage> storage,
                 std::shared_ptr<InodeIDGenerator> InodeIDGenerator,
+                std::shared_ptr<CloneIDGenerator> cloneIdGenerator,
                 std::shared_ptr<ChunkSegmentAllocator> chunkSegAllocator,
                 std::shared_ptr<CleanManagerInterface> cleanManager,
                 std::shared_ptr<FileRecordManager> fileRecordManager,
@@ -108,6 +133,7 @@ bool CurveFS::Init(std::shared_ptr<NameServerStorage> storage,
     startTime_ = std::chrono::steady_clock::now();
     storage_ = storage;
     InodeIDGenerator_ = InodeIDGenerator;
+    cloneIdGenerator_ = cloneIdGenerator;
     chunkSegAllocator_ = chunkSegAllocator;
     cleanManager_ = cleanManager;
     allocStatistic_ = allocStatistic;
@@ -195,6 +221,21 @@ StatusCode CurveFS::LookUpFile(const FileInfo & parentFileInfo,
     assert(fileInfo != nullptr);
 
     auto ret = storage_->GetFile(parentFileInfo.id(), fileName, fileInfo);
+
+    if (ret == StoreStatus::OK) {
+        return StatusCode::kOK;
+    } else if  (ret == StoreStatus::KeyNotExist) {
+        return StatusCode::kFileNotExists;
+    } else {
+        return StatusCode::kStorageError;
+    }
+}
+
+StatusCode CurveFS::LookUpSnapFile(const FileInfo & parentFileInfo,
+                    const std::string &fileName, FileInfo *fileInfo) const {
+    assert(fileInfo != nullptr);
+
+    auto ret = storage_->GetSnapFile(parentFileInfo.id(), fileName, fileInfo);
 
     if (ret == StoreStatus::OK) {
         return StatusCode::kOK;
@@ -328,6 +369,49 @@ StatusCode CurveFS::GetFileInfo(const std::string & filename,
     }
 }
 
+StatusCode CurveFS::GetFileInfoWithCloneChain(const std::string & filename,
+                                FileInfo *fileInfo) const {
+    assert(fileInfo != nullptr);
+    std::string lastEntry;
+    FileInfo parentFileInfo;
+    auto ret = WalkPath(filename, &parentFileInfo, &lastEntry);
+    if (ret != StatusCode::kOK) {
+        if (ret == StatusCode::kNotDirectory) {
+            return StatusCode::kFileNotExists;
+        }
+        return ret;
+    } else {
+        if (lastEntry.empty()) {
+            fileInfo->CopyFrom(parentFileInfo);
+            return StatusCode::kOK;
+        }
+        ret = LookUpFile(parentFileInfo, lastEntry, fileInfo);
+        if (ret != StatusCode::kOK) {
+            return ret;
+        }
+        if (fileInfo->filetype() == FileType::INODE_CLONE_PAGEFILE) {
+            return LookUpCloneChain(*fileInfo, fileInfo);
+        }
+        return ret;
+    }
+}
+
+StatusCode CurveFS::GetVirtualCloneVolFileInfo(const std::string & filename,
+                       FileInfo *fileInfo) const {
+    fileInfo->set_id(VIRTUALCLONEVOLINODEID);
+    fileInfo->set_filename(filename);
+    fileInfo->set_parentid(rootFileInfo_.id());
+    fileInfo->set_filetype(FileType::INODE_PAGEFILE);
+    fileInfo->set_owner(GetRootOwner());
+    fileInfo->set_chunksize(defaultChunkSize_);
+    fileInfo->set_segmentsize(defaultSegmentSize_);
+    fileInfo->set_length(maxFileLength_);
+    fileInfo->set_ctime(0);
+    fileInfo->set_seqnum(kStartSeqNum);
+    fileInfo->set_filestatus(FileStatus::kFileCreated);
+    return StatusCode::kOK;
+}
+
 AllocatedSize& AllocatedSize::operator+=(const AllocatedSize& rhs) {
     total += rhs.total;
     for (const auto& item : rhs.allocSizeMap) {
@@ -348,7 +432,8 @@ StatusCode CurveFS::GetAllocatedSize(const std::string& fileName,
     }
 
     if (fileInfo.filetype() != curve::mds::FileType::INODE_DIRECTORY &&
-                fileInfo.filetype() != curve::mds::FileType::INODE_PAGEFILE) {
+        fileInfo.filetype() != curve::mds::FileType::INODE_PAGEFILE &&
+        fileInfo.filetype() != curve::mds::FileType::INODE_CLONE_PAGEFILE) {
         LOG(ERROR) << "GetAllocatedSize not support file type : "
                    << fileInfo.filetype() << ", fileName = " << fileName;
         return StatusCode::kNotSupported;
@@ -422,7 +507,8 @@ StatusCode CurveFS::GetFileSize(const std::string& fileName, uint64_t* size) {
     }
 
     if (fileInfo.filetype() != curve::mds::FileType::INODE_DIRECTORY &&
-                fileInfo.filetype() != curve::mds::FileType::INODE_PAGEFILE) {
+        fileInfo.filetype() != curve::mds::FileType::INODE_PAGEFILE &&
+        fileInfo.filetype() != curve::mds::FileType::INODE_CLONE_PAGEFILE) {
         LOG(ERROR) << "GetFileSize not support file type : "
                    << fileInfo.filetype() << ", fileName = " << fileName;
         return StatusCode::kNotSupported;
@@ -435,7 +521,8 @@ StatusCode CurveFS::GetFileSize(const std::string& fileName,
                                 uint64_t* fileSize) {
     // return file length if it is a file
     switch (fileInfo.filetype()) {
-        case FileType::INODE_PAGEFILE: {
+        case FileType::INODE_PAGEFILE: 
+        case FileType::INODE_CLONE_PAGEFILE: {
             *fileSize = fileInfo.length();
             return StatusCode::kOK;
         }
@@ -1055,15 +1142,20 @@ StatusCode CurveFS::GetOrAllocateSegment(const std::string & filename,
         offset_t offset, bool allocateIfNoExist,
         PageFileSegment *segment) {
     assert(segment != nullptr);
-
+    StatusCode ret;
     FileInfo  fileInfo;
-    auto ret = GetFileInfo(filename, &fileInfo);
+    if (isVirtualCloneVol(filename)) {
+        ret = GetVirtualCloneVolFileInfo(filename, &fileInfo);
+    } else {
+        ret = GetFileInfo(filename, &fileInfo);
+    }
     if (ret != StatusCode::kOK) {
         LOG(INFO) << "get source file error, errCode = " << ret;
         return  ret;
     }
 
-    if (fileInfo.filetype() != FileType::INODE_PAGEFILE) {
+    if (fileInfo.filetype() != FileType::INODE_PAGEFILE &&
+        fileInfo.filetype() != FileType::INODE_CLONE_PAGEFILE) {
         LOG(INFO) << "not pageFile, can't do this";
         return StatusCode::kParaError;
     }
@@ -1140,7 +1232,8 @@ StatusCode CurveFS::CreateSnapShotFile(const std::string &fileName,
     }
 
     // check file type
-    if (fileInfo.filetype() != FileType::INODE_PAGEFILE) {
+    if ((fileInfo.filetype() != FileType::INODE_PAGEFILE) &&
+        (fileInfo.filetype() != FileType::INODE_CLONE_PAGEFILE)) {
         return StatusCode::kNotSupported;
     }
 
@@ -1181,8 +1274,8 @@ StatusCode CurveFS::CreateSnapShotFile(const std::string &fileName,
     snapshotFileInfo->set_id(inodeID);
     snapshotFileInfo->set_ctime(::curve::common::TimeUtility::GetTimeofDayUs());
     snapshotFileInfo->set_parentid(fileInfo.id());
-    snapshotFileInfo->set_filename(fileInfo.filename() + "-" +
-            std::to_string(fileInfo.seqnum()));
+    snapshotFileInfo->set_filename(MakeSnapshotName(fileInfo.filename(),
+        fileInfo.seqnum()));
     snapshotFileInfo->set_filestatus(FileStatus::kFileCreated);
 
     // add original file snapshot seq number
@@ -1219,7 +1312,8 @@ StatusCode CurveFS::CreateSnapShotFile2(const std::string &fileName,
     }
 
     // check file type
-    if (fileInfo.filetype() != FileType::INODE_PAGEFILE) {
+    if ((fileInfo.filetype() != FileType::INODE_PAGEFILE) &&
+        (fileInfo.filetype() != FileType::INODE_CLONE_PAGEFILE)) {
         return StatusCode::kNotSupported;
     }
 
@@ -1290,7 +1384,8 @@ StatusCode CurveFS::ListSnapShotFile(const std::string & fileName,
     }
 
     // check file type
-    if (fileInfo->filetype() != FileType::INODE_PAGEFILE) {
+    if ((fileInfo->filetype() != FileType::INODE_PAGEFILE) &&
+        (fileInfo->filetype() != FileType::INODE_CLONE_PAGEFILE)) {
         LOG(INFO) << fileName << ", filetype not support SnapShot";
         return StatusCode::kNotSupported;
     }
@@ -1624,6 +1719,223 @@ StatusCode CurveFS::GetSnapShotFileSegment(
     }
 }
 
+StatusCode CurveFS::Clone(const std::string &fileName,
+        const std::string& owner,
+        const std::string &srcFileName,
+        FileSeqType seq,
+        FileInfo *fileInfo) {
+    // check the existence of the file
+    FileInfo parentFileInfo;
+    std::string lastEntry;
+    auto ret = WalkPath(fileName, &parentFileInfo, &lastEntry);
+    if ( ret != StatusCode::kOK ) {
+        LOG(ERROR) << "WalkPath failed, ret: " << ret
+                   << ", path: " << fileName;
+        return ret;
+    }
+    if (lastEntry.empty()) {
+        return StatusCode::kCloneFileNameIllegal;
+    }
+
+    ret = LookUpFile(parentFileInfo, lastEntry, fileInfo);
+    if (ret == StatusCode::kOK) {
+        LOG(ERROR) << "Clone failed, dstfile exist.";
+        return StatusCode::kFileExists;
+    }
+    if (ret != StatusCode::kFileNotExists) {
+        LOG(ERROR) << "LookUpFile failed, ret: " << ret;
+        return ret;
+    } 
+
+    // check the existence of the snap file
+    FileInfo srcParentFileInfo;
+    std::string srcLastEntry;
+    ret = WalkPath(srcFileName, &srcParentFileInfo, &srcLastEntry);
+    if (ret != StatusCode::kOK ) {
+        LOG(ERROR) << "WalkPath failed, ret: " << ret
+                   << ", path: " << srcFileName;
+        return ret;
+    }
+    if (srcLastEntry.empty()) {
+        LOG(ERROR) << "Clone failed, srcfile not exist.";
+        return StatusCode::kSnapshotFileNotExists;
+    }
+    FileInfo srcFileInfo;
+    ret = LookUpFile(srcParentFileInfo, srcLastEntry, &srcFileInfo);
+    if (ret != StatusCode::kOK) {
+        LOG(ERROR) << "LookUpFile srcfile: " << srcLastEntry
+                   << ", failed, ret: " << ret;
+        return ret;
+    }
+    FileInfo snapFileInfo;
+    ret = LookUpSnapFile(srcFileInfo, 
+        MakeSnapshotName(srcLastEntry, seq), &snapFileInfo);
+    if (ret != StatusCode::kOK) {
+        LOG(ERROR) << "LookUpSnapFile srcfile: " 
+                   << MakeSnapshotName(srcLastEntry, seq)
+                   << ", failed, ret: " << ret;
+        return ret;
+    }
+
+    // start clone
+    InodeID inodeID;
+    if (InodeIDGenerator_->GenInodeID(&inodeID) != true) {
+        LOG(ERROR) << "Clone fileName = " << fileName
+            << ", GenInodeID error";
+        return StatusCode::kStorageError;
+    }
+
+    fileInfo->set_id(inodeID);
+    fileInfo->set_filename(lastEntry);
+    fileInfo->set_parentid(parentFileInfo.id());
+    fileInfo->set_filetype(FileType::INODE_CLONE_PAGEFILE);
+    fileInfo->set_owner(owner);
+    fileInfo->set_chunksize(srcFileInfo.chunksize());
+    uint64_t segmentSize = srcFileInfo.segmentsize();
+    fileInfo->set_segmentsize(srcFileInfo.segmentsize());
+    fileInfo->set_length(srcFileInfo.length());
+    fileInfo->set_ctime(::curve::common::TimeUtility::GetTimeofDayUs());
+    fileInfo->set_seqnum(kStartSeqNum);
+    fileInfo->set_filestatus(FileStatus::kFileCreated);
+    fileInfo->set_stripeunit(srcFileInfo.stripeunit());
+    fileInfo->set_stripecount(srcFileInfo.stripecount());
+
+    fileInfo->set_clonesource(srcFileName);
+    uint64_t cloneLength = snapFileInfo.length();
+    // use length when doing snapshot
+    fileInfo->set_clonelength(cloneLength);
+
+    fileInfo->set_initclonesegment(false);
+
+    // 先持久化一次，万一clone中断，可依据此Fileinfo做清理
+    // TODO(xuchaojie): 克隆失败时需清理segment
+    ret = PutFile(*fileInfo);
+    if (ret != StatusCode::kOK) {
+        return ret;
+    }
+
+    // clone segment
+    LOG(INFO) << "Clone Segment length: " << cloneLength;
+    for (uint64_t offset = 0; offset < cloneLength; offset += segmentSize) {
+        PageFileSegment segment;
+        PageFileSegment srcSegment;
+        auto storeRet = storage_->GetSegment(
+            srcFileInfo.id(), offset, &srcSegment);
+        if (storeRet == StoreStatus::OK) {
+            auto ifok = chunkSegAllocator_->CloneChunkSegment(
+                    srcSegment, &segment);
+            if (ifok == false) {
+                LOG(ERROR) << "CloneChunkSegment error";
+                return StatusCode::kSegmentAllocateError;
+            }
+            int64_t revision;
+            if (storage_->PutSegment(fileInfo->id(), offset, &segment, &revision)
+                != StoreStatus::OK) {
+                LOG(ERROR) << "PutSegment fail, fileInfo.id() = "
+                           << fileInfo->id()
+                           << ", offset = "
+                           << offset;
+                return StatusCode::kStorageError;
+            }
+            allocStatistic_->AllocSpace(segment.logicalpoolid(),
+                    segment.segmentsize(),
+                    revision);
+            LOG(INFO) << "clone segment success, fileInfo.id() = "
+                      << fileInfo->id()
+                      << ", offset = " << offset;
+        } else if (storeRet == StoreStatus::KeyNotExist) {
+            LOG(INFO) << "clone segment source not exist"
+                      << ", use normal allocate logical.";
+            // not exist, use normal allocate logical
+        } else {
+            LOG(ERROR) << "Clone Get srcSegment error";
+            return StatusCode::KInternalError;
+        }
+    }
+
+    // allocate cloneNo
+    uint64_t cloneNo;
+    if (cloneIdGenerator_->GenCloneID(&cloneNo) != true) {
+        LOG(ERROR) << "Clone fileName = " << fileName
+            << ", GenCloneNo error";
+        return StatusCode::kStorageError;
+    }
+    fileInfo->set_cloneno(cloneNo);
+    fileInfo->set_clonesn(seq);
+    fileInfo->set_initclonesegment(true);
+
+    ret = PutFile(*fileInfo);
+    if (ret != StatusCode::kOK) {
+        return ret;
+    }
+
+    // lookup clone chain
+    FileInfo_CloneInfos *cinfo = fileInfo->add_clones();
+    // is clone file & not flattend
+    if ((FileType::INODE_CLONE_PAGEFILE == srcFileInfo.filetype()) && 
+           (srcFileInfo.has_clonesource())) {
+        cinfo->set_cloneno(srcFileInfo.cloneno());
+    } else {
+        cinfo->set_cloneno(0);
+        fileInfo->set_cloneorigin(srcFileName);
+    }
+    cinfo->set_clonesn(seq);
+    ret = LookUpCloneChain(srcFileInfo, fileInfo);
+    return ret;
+}
+
+StatusCode CurveFS::LookUpCloneChain(
+    const FileInfo &srcFileInfo, FileInfo *fileInfo) const {
+    // is clone file & not flattend
+    FileInfo tmpInfo = srcFileInfo;
+    while ((FileType::INODE_CLONE_PAGEFILE == tmpInfo.filetype()) && 
+           (tmpInfo.has_clonesource())) {
+        // lookup parent
+        FileInfo parentFileInfo;
+        std::string lastEntry;
+        auto ret = WalkPath(
+            tmpInfo.clonesource(), &parentFileInfo, &lastEntry);
+        if ( ret != StatusCode::kOK ) {
+            LOG(ERROR) << "WalkPath failed, ret: " << ret
+                       << ", path: " << tmpInfo.clonesource();
+            return ret;
+        }
+        if (lastEntry.empty()) {
+            LOG(ERROR) << "LookUpCloneChain found CloneFileNameIllegal"
+                       << ", clonesource: " << tmpInfo.clonesource();
+            return StatusCode::kCloneFileNameIllegal;
+        }
+        FileInfo cloneSourceFileInfo;
+        ret = LookUpFile(parentFileInfo, lastEntry, &cloneSourceFileInfo);
+        if (ret != StatusCode::kOK) {
+            LOG(ERROR) << "LookUpCloneChain lookup clonesource error: " << ret;
+            return ret;
+        }
+        
+        FileInfo_CloneInfos *cinfo = fileInfo->add_clones();
+        if ((FileType::INODE_CLONE_PAGEFILE == cloneSourceFileInfo.filetype()) && 
+               (cloneSourceFileInfo.has_clonesource())) {
+            cinfo->set_cloneno(cloneSourceFileInfo.cloneno());
+        } else {
+            cinfo->set_cloneno(0);
+            fileInfo->set_cloneorigin(tmpInfo.clonesource());
+        }
+        if (!tmpInfo.has_clonesn()) {
+            LOG(ERROR) << "LookUpCloneChain found tmpInfo is a clone file "
+                       << "but do not have clonesn.";
+            return StatusCode::KInternalError;
+        }
+        cinfo->set_clonesn(tmpInfo.clonesn());
+
+        LOG(INFO) << "LookUpCloneChain one step success"
+                  << ", clonesource: " << tmpInfo.clonesource()
+                  << ", cloneno: " << cinfo->cloneno()
+                  << ", clonesn: " << cinfo->clonesn();
+        tmpInfo = cloneSourceFileInfo;
+    };
+    return StatusCode::kOK;
+}
+
 StatusCode CurveFS::OpenFile(const std::string &fileName,
                              const std::string &clientIP,
                              ProtoSession *protoSession,
@@ -1646,9 +1958,8 @@ StatusCode CurveFS::OpenFile(const std::string &fileName,
         return ret;
     }
 
-    LOG(INFO) << "FileInfo, " << fileInfo->DebugString();
-
-    if (fileInfo->filetype() != FileType::INODE_PAGEFILE) {
+    if (fileInfo->filetype() != FileType::INODE_PAGEFILE &&
+        fileInfo->filetype() != FileType::INODE_CLONE_PAGEFILE) {
         LOG(ERROR) << "OpenFile file type not support, fileName = " << fileName
                    << ", clientIP = " << clientIP
                    << ", filetype = " << fileInfo->filetype();
@@ -1658,11 +1969,16 @@ StatusCode CurveFS::OpenFile(const std::string &fileName,
     fileRecordManager_->GetRecordParam(protoSession);
 
     // clone file
-    if (fileInfo->has_clonesource() && isPathValid(fileInfo->clonesource())) {
-        return ListCloneSourceFileSegments(fileInfo, cloneSourceSegment);
+    if (fileInfo->filetype() == FileType::INODE_CLONE_PAGEFILE) {
+        ret = LookUpCloneChain(*fileInfo, fileInfo);
+    } else {
+        if (fileInfo->has_clonesource() && isPathValid(fileInfo->clonesource())) {
+            ret = ListCloneSourceFileSegments(fileInfo, cloneSourceSegment);
+        }
     }
 
-    return StatusCode::kOK;
+    LOG(INFO) << "Open FileInfo, " << fileInfo->ShortDebugString();
+    return ret;
 }
 
 StatusCode CurveFS::CloseFile(const std::string &fileName,
@@ -2328,7 +2644,8 @@ StatusCode CurveFS::ListAllFiles(uint64_t inodeId,
         return StatusCode::kStorageError;
     }
     for (const auto& file : tempFiles) {
-        if (file.filetype() == FileType::INODE_PAGEFILE) {
+        if ((file.filetype() == FileType::INODE_PAGEFILE) ||
+            (file.filetype() == FileType::INODE_CLONE_PAGEFILE)) {
             files->emplace_back(file);
         } else if (file.filetype() == FileType::INODE_DIRECTORY) {
             std::vector<FileInfo> tempFiles2;

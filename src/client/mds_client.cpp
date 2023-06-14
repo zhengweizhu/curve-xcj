@@ -57,6 +57,8 @@ using curve::mds::ProtoSession;
 using curve::mds::StatusCode;
 using curve::common::ChunkServerLocation;
 using curve::mds::topology::CopySetServerInfo;
+using curve::mds::CloneRequest;
+using curve::mds::CloneResponse;
 
 MDSClient::MDSClient(const std::string& metricPrefix)
     : inited_(false),
@@ -886,6 +888,46 @@ LIBCURVE_ERROR MDSClient::GetClusterInfo(ClusterContext* clsctx) {
     return rpcExcutor.DoRPCTask(task, metaServerOpt_.mdsMaxRetryMS);
 }
 
+LIBCURVE_ERROR MDSClient::Clone(const std::string& source,
+        const std::string& destination,
+        const UserInfo_t& userinfo,
+        uint64_t seq,
+        FInfo* fileinfo) {
+    auto task = RPCTaskDefine {
+        CloneResponse response;
+        MDSClientBase::Clone(source, destination, userinfo, seq,
+                             &response, cntl, channel);
+        if (cntl->Failed()) {
+            LOG(WARNING) << "Clone failed, errcorde = "
+                         << cntl->ErrorCode()
+                         << ", error content:" << cntl->ErrorText()
+                         << ", source = " << source
+                         << ", destination = " << destination;
+            return -cntl->ErrorCode();
+        }
+
+        LIBCURVE_ERROR retcode;
+        StatusCode stcode = response.statuscode();
+        MDSStatusCode2LibcurveError(stcode, &retcode);
+        LOG_IF(WARNING, retcode != LIBCURVE_ERROR::OK)
+            << "Clone failed: source = " << source
+            << ", destination = " << destination
+            << ", owner = " << userinfo.owner << ", seqnum = " << seq
+            << ", errocde = " << retcode
+            << ", error msg = " << StatusCode_Name(stcode)
+            << ", log id = " << cntl->log_id();
+
+        if (stcode == StatusCode::kOK) {
+            FileEpoch_t fEpoch;
+            ServiceHelper::ProtoFileInfo2Local(response.fileinfo(),
+                                               fileinfo, &fEpoch);
+        }
+
+        return retcode;
+    };
+    return rpcExcutor.DoRPCTask(task, metaServerOpt_.mdsMaxRetryMS);
+}
+
 LIBCURVE_ERROR MDSClient::CreateCloneFile(const std::string& source,
                                           const std::string& destination,
                                           const UserInfo_t& userinfo,
@@ -1033,7 +1075,8 @@ LIBCURVE_ERROR MDSClient::GetOrAllocateSegment(bool allocate, uint64_t offset,
             ChunkID chunkid = pfs.chunks(i).chunkid();
             CopysetID copysetid = pfs.chunks(i).copysetid();
             segInfo->lpcpIDInfo.cpidVec.push_back(copysetid);
-            segInfo->chunkvec.emplace_back(chunkid, logicpoolid, copysetid);
+            segInfo->chunkvec.emplace_back(chunkid, logicpoolid, copysetid, 
+                pfs.iscloned());
         }
         return LIBCURVE_ERROR::OK;
     };

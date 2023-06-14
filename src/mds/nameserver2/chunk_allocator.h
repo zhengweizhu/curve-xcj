@@ -42,6 +42,9 @@ class ChunkSegmentAllocator {
     virtual bool AllocateChunkSegment(FileType type,
         SegmentSizeType segmentSize, ChunkSizeType chunkSize,
         offset_t offset, PageFileSegment *segment) = 0;
+
+    virtual bool CloneChunkSegment(const PageFileSegment &srcSegment,
+        PageFileSegment *segment) = 0;
 };
 
 
@@ -64,6 +67,9 @@ class ChunkSegmentAllocatorImpl: public ChunkSegmentAllocator {
     bool AllocateChunkSegment(FileType type,
         SegmentSizeType segmentSize, ChunkSizeType chunkSize,
         offset_t offset, PageFileSegment *segment) override;
+
+    bool CloneChunkSegment(const PageFileSegment &srcSegment,
+        PageFileSegment *segment) override;
 
  private:
     std::shared_ptr<TopologyChunkAllocator> topologyChunkAllocator_;
