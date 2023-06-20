@@ -204,6 +204,8 @@ class CSSnapshot {
     std::shared_ptr<FilePool> chunkFilePool_;
     // datastore internal statistical indicators
     std::shared_ptr<DataStoreMetric> metric_;
+
+    uint64_t cloneNo_;
 };
 
 class CSSnapshots {
@@ -220,6 +222,11 @@ class CSSnapshots {
     CSErrorCode Move(SequenceNum from, SequenceNum to);
     CSErrorCode Merge(SequenceNum from, SequenceNum to);
     virtual ~CSSnapshots();
+
+    
+    bool DivideSnapshotObjInfoByIndex (SequenceNum sn, std::vector<BitRange>& range, 
+                                    std::vector<BitRange>& notInRanges, 
+                                    std::vector<ObjectInfo>& objInfos);
 
  private:
     std::vector<CSSnapshot*>::iterator find(SequenceNum sn);
