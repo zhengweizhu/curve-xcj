@@ -244,7 +244,7 @@ bool FilePool::CheckValid() {
     return true;
 }
 
-int FilePool::GetFile(const std::string& targetpath, char* metapage) {
+int FilePool::GetFile(const std::string& targetpath, const char* metapage) {
     int ret = -1;
     int retry = 0;
 
@@ -348,7 +348,7 @@ int FilePool::AllocateChunk(const std::string& chunkpath) {
     return ret;
 }
 
-bool FilePool::WriteMetaPage(const std::string& sourcepath, char* page) {
+bool FilePool::WriteMetaPage(const std::string& sourcepath, const char* page) {
     int fd = -1;
     int ret = -1;
 
