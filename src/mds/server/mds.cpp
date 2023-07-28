@@ -141,13 +141,13 @@ void MDS::Init() {
     InitTopologyStat();
     InitTopologyChunkAllocator(options_.topologyOption);
     InitTopologyMetricService(options_.topologyOption);
+    fileLockManager_ =
+        new FileLockManager(options_.mdsFilelockBucketNum);
     InitCurveFS(options_.curveFSOptions);
     InitTopologyServiceManager(options_.topologyOption);
     InitCoordinator();
     InitHeartbeatManager();
 
-    fileLockManager_ =
-        new FileLockManager(options_.mdsFilelockBucketNum);
     inited_ = true;
 }
 
@@ -162,6 +162,10 @@ void MDS::Run() {
     LOG_IF(FATAL, topologyMetricService_->Run() < 0)
         << "topologyMetricService start run fail";
     kCurveFS.Run();
+    LOG_IF(FATAL, !flattenManager_->Start())
+        << "start flattenManager fail.";
+    LOG_IF(ERROR, !kCurveFS.ResumeFlattenJob()) 
+        << "resume flatten job have some errors!";
     LOG_IF(FATAL, !cleanManager_->Start()) << "start cleanManager fail.";
     // recover unfinished tasks
     cleanManager_->RecoverCleanTasks2();
@@ -184,6 +188,8 @@ void MDS::Stop() {
     heartbeatManager_->Stop();
 
     coordinator_->Stop();
+
+    flattenManager_->Stop();
 
     kCurveFS.Uninit();
 
@@ -436,6 +442,26 @@ void MDS::InitSnapshotCloneClient() {
     snapshotCloneClient_->Init(snapshotCloneClientOption);
 }
 
+void MDS::InitFlattenOption(FlattenOption *option) {
+    conf_->GetUInt32Value(
+        "mds.flatten.flattenChunkConcurrency",
+        &option->flattenChunkConcurrency);
+    conf_->GetUInt64Value(
+        "mds.flatten.flattenChunkPartSize",
+        &option->flattenChunkPartSize);
+}
+
+void MDS::InitFlattenManager() {
+    FlattenOption flattenOption;
+    InitFlattenOption(&flattenOption);
+    auto flattenCore = std::make_shared<FlattenCore>(
+        flattenOption, nameServerStorage_,
+        copysetClient_, fileLockManager_);
+    auto flattenTaskManager = std::make_shared<TaskManager>();
+    flattenManager_ = std::make_shared<FlattenManagerImpl>(
+        flattenCore, flattenTaskManager);
+}
+
 void MDS::InitCurveFS(const CurveFSOption& curveFSOptions) {
     // init InodeIDGenerator
     auto inodeIdGenerator = std::make_shared<InodeIdGeneratorImp>(etcdClient_);
@@ -461,13 +487,16 @@ void MDS::InitCurveFS(const CurveFSOption& curveFSOptions) {
     // init snapshotCloneClient
     InitSnapshotCloneClient();
 
+    InitFlattenManager();
+
     LOG_IF(FATAL, !kCurveFS.Init(nameServerStorage_, inodeIdGenerator,
                   cloneIdGenerator,
                   chunkSegmentAllocate, cleanManager_,
                   fileRecordManager,
                   segmentAllocStatistic_,
                   curveFSOptions, topology_,
-                  snapshotCloneClient_))
+                  snapshotCloneClient_,
+                  flattenManager_))
         << "init FileRecordManager fail";
     LOG(INFO) << "init FileRecordManager success.";
 
@@ -521,12 +550,12 @@ void MDS::InitCleanManager() {
     // init copysetClient
     ChunkServerClientOption chunkServerClientOption;
     InitChunkServerClientOption(&chunkServerClientOption);
-    auto copysetClient =
+    copysetClient_ =
         std::make_shared<CopysetClient>(topology_, chunkServerClientOption,
                                                         channelPool);
 
     auto cleanCore = std::make_shared<CleanCore>(nameServerStorage_,
-                                                 copysetClient,
+                                                 copysetClient_,
                                                  segmentAllocStatistic_);
 
     cleanManager_ = std::make_shared<CleanManager>(cleanCore,
@@ -541,6 +570,9 @@ void MDS::InitChunkServerClientOption(ChunkServerClientOption *option) {
         &option->rpcRetryTimes);
     conf_->GetValueFatalIfFail("mds.chunkserverclient.rpcRetryIntervalMs",
         &option->rpcRetryIntervalMs);
+    conf_->GetUInt32Value(
+        "mds.chunkserverclient.rpcMaxTimeoutMs",
+        &option->rpcMaxTimeoutMs);
     conf_->GetValueFatalIfFail("mds.chunkserverclient.updateLeaderRetryTimes",
         &option->updateLeaderRetryTimes);
     conf_->GetValueFatalIfFail(
