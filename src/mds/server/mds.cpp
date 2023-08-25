@@ -469,9 +469,6 @@ void MDS::InitCurveFS(const CurveFSOption& curveFSOptions) {
     // init ChunkIDGenerator
     auto chunkIdGenerator = std::make_shared<ChunkIDGeneratorImp>(etcdClient_);
 
-    // init CloneIDGenerator
-    auto cloneIdGenerator = std::make_shared<CloneIDGeneratorImpl>(etcdClient_);
-
     // init ChunkSegmentAllocator
     auto chunkSegmentAllocate =
         std::make_shared<ChunkSegmentAllocatorImpl>(
@@ -490,7 +487,6 @@ void MDS::InitCurveFS(const CurveFSOption& curveFSOptions) {
     InitFlattenManager();
 
     LOG_IF(FATAL, !kCurveFS.Init(nameServerStorage_, inodeIdGenerator,
-                  cloneIdGenerator,
                   chunkSegmentAllocate, cleanManager_,
                   fileRecordManager,
                   segmentAllocStatistic_,
