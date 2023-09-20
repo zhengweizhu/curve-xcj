@@ -497,7 +497,7 @@ LIBCURVE_ERROR MDSClient::IncreaseEpoch(const std::string& filename,
 
 LIBCURVE_ERROR MDSClient::CreateSnapShot(const std::string& filename,
                                          const UserInfo_t& userinfo,
-                                         uint64_t* seq) {
+                                         FInfo* snapInfo) {
     auto task = RPCTaskDefine {
         CreateSnapShotResponse response;
         MDSClientBase::CreateSnapShot(filename, userinfo,
@@ -516,12 +516,6 @@ LIBCURVE_ERROR MDSClient::CreateSnapShot(const std::string& filename,
         if ((stcode == StatusCode::kOK ||
              stcode == StatusCode::kFileUnderSnapShot) &&
             hasinfo) {
-            FInfo_t *fi = new (std::nothrow) FInfo_t;
-            FileEpoch_t fEpoch;
-            ServiceHelper::ProtoFileInfo2Local(response.snapshotfileinfo(),
-                                               fi, &fEpoch);
-            *seq = fi->seqnum;
-            delete fi;
             if (stcode == StatusCode::kOK) {
                 return LIBCURVE_ERROR::OK;
             } else {
@@ -533,11 +527,9 @@ LIBCURVE_ERROR MDSClient::CreateSnapShot(const std::string& filename,
         }
 
         if (hasinfo) {
-            FInfo_t fi;
             FileEpoch_t fEpoch;
             ServiceHelper::ProtoFileInfo2Local(response.snapshotfileinfo(),
-                                               &fi, &fEpoch);  // NOLINT
-            *seq = fi.seqnum;
+                                               snapInfo, &fEpoch);  // NOLINT
         }
 
         LIBCURVE_ERROR retcode;

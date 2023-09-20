@@ -51,6 +51,90 @@ int CloneCoreImpl::Init() {
     return kErrCodeSuccess;
 }
 
+int CloneCoreImpl::CloneLocal(const std::string &file,
+    const std::string &snapshotName,
+    const std::string &user,
+    const std::string &destination,
+    const std::string &poolset) {
+    std::string snapPath = MakeSnapshotPath(file, snapshotName);
+    FInfo finfo;
+    int ret = client_->Clone(snapPath, user, destination,
+        poolset, &finfo);
+    switch (ret) {
+        case LIBCURVE_ERROR::OK:
+            LOG(INFO) << "Clone success, ret = " << ret
+                      << ", file = " << file
+                      << ", snapshotName = " << snapshotName
+                      << ", user = " << user
+                      << ", destination = " << destination
+                      << ", poolset = " << poolset;
+            return kErrCodeSuccess;
+        case -LIBCURVE_ERROR::EXISTS:
+            LOG(WARNING) << "Clone fail, ret = " << ret
+                         << ", file = " << file
+                         << ", snapshotName = " << snapshotName
+                         << ", user = " << user
+                         << ", destination = " << destination
+                         << ", poolset = " << poolset;
+            return kErrCodeFileExist;
+        case -LIBCURVE_ERROR::NOTEXIST:
+            LOG(WARNING) << "Clone fail, ret = " << ret
+                         << ", file = " << file
+                         << ", snapshotName = " << snapshotName
+                         << ", user = " << user
+                         << ", destination = " << destination
+                         << ", poolset = " << poolset;
+            return kErrCodeFileNotExist;
+        case -LIBCURVE_ERROR::AUTHFAIL:
+            LOG(ERROR) << "Clone snapshot by invalid user"
+                       << ", file = " << file
+                       << ", snapshotName = " << snapshotName
+                       << ", user = " << user
+                       << ", destination = " << destination
+                       << ", poolset = " << poolset;
+            return kErrCodeInvalidUser;
+        default:
+            LOG(ERROR) << "Clone fail, ret = " << ret
+                       << ", file = " << file
+                       << ", snapshotName = " << snapshotName
+                       << ", user = " << user
+                       << ", destination = " << destination
+                       << ", poolset = " << poolset;
+            return kErrCodeInternalError;
+    }
+    // can not reach here
+    return kErrCodeInternalError;
+}
+
+int CloneCoreImpl::FlattenLocal(const std::string &file,
+    const std::string &user) {
+    int ret = client_->Flatten(file, user);
+    switch (ret) {
+        case LIBCURVE_ERROR::OK:
+            LOG(INFO) << "Flatten success, ret = " << ret
+                      << ", file = " << file
+                      << ", user = " << user;
+            return kErrCodeSuccess;
+        case -LIBCURVE_ERROR::NOTEXIST:
+            LOG(WARNING) << "Flatten fail, ret = " << ret
+                         << ", file = " << file
+                         << ", user = " << user;
+            return kErrCodeFileNotExist;
+        case -LIBCURVE_ERROR::AUTHFAIL:
+            LOG(WARNING) << "Flatten fail, ret = " << ret
+                         << ", file = " << file
+                         << ", user = " << user;
+            return kErrCodeInvalidUser;
+        default:
+            LOG(ERROR) << "Flatten fail, ret = " << ret
+                         << ", file = " << file
+                         << ", user = " << user;
+            return kErrCodeInternalError;
+    }
+    // can not reach here
+    return kErrCodeInternalError;
+}
+
 int CloneCoreImpl::CloneOrRecoverPre(const UUID &source,
     const std::string &user,
     const std::string &destination,
@@ -505,10 +589,6 @@ int CloneCoreImpl::BuildFileInfoFromSnapshot(
         newFileInfo->seqnum = kInitializeSeqNum;
     }
     newFileInfo->owner = task->GetCloneInfo().GetUser();
-
-    if (!dataStore_->Enabled()) {
-        return kErrCodeSuccess;
-    }
 
     ChunkIndexDataName indexName(snapInfo.GetFileName(),
          snapInfo.GetSeqNum());

@@ -103,7 +103,7 @@ class SnapshotCore {
      *
      * @return 错误码
      */
-    virtual int CreateSyncSnapshotPre(const std::string &file,
+    virtual int CreateLocalSnapshot(const std::string &file,
         const std::string &user,
         const std::string &snapshotName,
         SnapshotInfo *snapInfo) = 0;
@@ -119,16 +119,6 @@ class SnapshotCore {
      */
     virtual void HandleCreateSnapshotTask(
         std::shared_ptr<SnapshotTaskInfo> task) = 0;
-
-    /**
-     * @brief 同步执行创建秒级快照任务
-     *
-     * @param task 快照任务信息
-     * @return 错误码,创建curvefs快照和更新metaStore成功才返回success
-     */
-    virtual int HandleCreateSyncSnapshotTask(
-        std::shared_ptr<SnapshotTaskInfo> task) = 0;
-
 
     /**
      * @brief 删除快照前置操作
@@ -158,11 +148,10 @@ class SnapshotCore {
      *
      * @return 错误码
      */
-    virtual int DeleteSyncSnapshotPre(
+    virtual int DeleteLocalSnapshot(
         UUID uuid,
         const std::string &user,
-        const std::string &fileName,
-        SnapshotInfo *snapInfo) = 0;
+        const std::string &fileName) = 0;
 
     /**
      * @brief 执行删除快照任务并更新progress
@@ -172,13 +161,9 @@ class SnapshotCore {
     virtual void HandleDeleteSnapshotTask(
         std::shared_ptr<SnapshotTaskInfo> task) = 0;
 
-    /**
-     * @brief 执行删除本地同步快照任务并更新progress
-     *
-     * @param task 快照任务信息
-     */
-    virtual void HandleDeleteSyncSnapshotTask(
-        std::shared_ptr<SnapshotTaskInfo> task) = 0;
+    virtual int GetFileInfo(const std::string &file,
+        const std::string &user,
+        FInfo *fInfo) = 0;
 
     /**
      * @brief 获取文件的快照信息
@@ -192,6 +177,23 @@ class SnapshotCore {
         std::vector<SnapshotInfo> *info) = 0;
 
     /**
+     * @brief get localsnapshot status
+     *
+     * @param file  volume name
+     * @param user  owner of the volume
+     * @param seq  seq of the snapshot
+     * @param status  status of the snapshot
+     * @param progress  progress of the snapshot
+     *
+     * @return  error code
+     */
+    virtual int GetLocalSnapshotStatus(const std::string &file,
+        const std::string &user,
+        uint64_t seq,
+        Status *status,
+        uint32_t *progress) = 0;
+
+    /**
      * @brief 获取全部快照信息
      *
      * @param list 快照信息列表
@@ -202,6 +204,10 @@ class SnapshotCore {
 
 
     virtual int GetSnapshotInfo(const UUID uuid,
+        SnapshotInfo *info) = 0;
+
+    virtual int GetSnapshotInfo(const std::string &file,
+        const std::string &snapshotName,
         SnapshotInfo *info) = 0;
 
     virtual int HandleCancelUnSchduledSnapshotTask(
@@ -262,7 +268,7 @@ class SnapshotCoreImpl : public SnapshotCore {
         const std::string &snapshotName,
         SnapshotInfo *snapInfo) override;
 
-    int CreateSyncSnapshotPre(const std::string &file,
+    int CreateLocalSnapshot(const std::string &file,
         const std::string &user,
         const std::string &snapshotName,
         SnapshotInfo *snapInfo) override;
@@ -270,29 +276,36 @@ class SnapshotCoreImpl : public SnapshotCore {
     void HandleCreateSnapshotTask(
         std::shared_ptr<SnapshotTaskInfo> task) override;
 
-    int HandleCreateSyncSnapshotTask(
-        std::shared_ptr<SnapshotTaskInfo> task) override;
-
     int DeleteSnapshotPre(UUID uuid,
         const std::string &user,
         const std::string &fileName,
         SnapshotInfo *snapInfo) override;
 
-    int DeleteSyncSnapshotPre(UUID uuid,
+    int DeleteLocalSnapshot(UUID uuid,
         const std::string &user,
-        const std::string &fileName,
-        SnapshotInfo *snapInfo) override;
+        const std::string &fileName) override;
 
     void HandleDeleteSnapshotTask(
         std::shared_ptr<SnapshotTaskInfo> task) override;
 
-    void HandleDeleteSyncSnapshotTask(
-        std::shared_ptr<SnapshotTaskInfo> task) override;
+    int GetFileInfo(const std::string &file,
+        const std::string &user,
+        FInfo *fInfo) override;
 
     int GetFileSnapshotInfo(const std::string &file,
         std::vector<SnapshotInfo> *info) override;
 
+    int GetLocalSnapshotStatus(const std::string &file,
+        const std::string &user,
+        uint64_t seq,
+        Status *status,
+        uint32_t *progress) override;
+
     int GetSnapshotInfo(const UUID uuid,
+        SnapshotInfo *info) override;
+
+    int GetSnapshotInfo(const std::string &file,
+        const std::string &snapshotName,
         SnapshotInfo *info) override;
 
     int GetSnapshotList(std::vector<SnapshotInfo> *list) override;
@@ -347,12 +360,10 @@ class SnapshotCoreImpl : public SnapshotCore {
      * @brief 删除curvefs上的快照
      *
      * @param info 快照信息
-     * @param task 快照删除任务，用于更新删除进度
      *
      * @return 错误码
      */
-    int DeleteSnapshotOnCurvefs(const SnapshotInfo &info,
-        std::shared_ptr<SnapshotTaskInfo> task = nullptr);
+    int DeleteSnapshotOnCurvefs(const SnapshotInfo &info);
 
     /**
      * @brief 构建索引块

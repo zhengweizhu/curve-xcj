@@ -141,6 +141,9 @@ void SnapShotCloneServer::InitAllSnapshotCloneOptions(void) {
 
     conf_->GetValueFatalIfFail("leader.election.timeoutms",
         &(snapshotCloneServerOptions_.electionTimeoutMs));
+
+    conf_->GetValue("s3.config_path",
+        &(snapshotCloneServerOptions_.s3ConfPath));
 }
 
 void SnapShotCloneServer::StartDummy() {

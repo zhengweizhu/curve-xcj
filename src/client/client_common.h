@@ -168,6 +168,7 @@ typedef struct FInfo {
     uint64_t stripeUnit;
     uint64_t stripeCount;
     std::string poolset;
+    uint32_t version;
 
     OpenFlags       openflags;
 
