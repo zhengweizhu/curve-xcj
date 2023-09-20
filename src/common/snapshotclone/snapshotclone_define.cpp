@@ -29,6 +29,9 @@ namespace snapshotcloneserver {
 
 // 字符串常量定义
 const char* kServiceName = "SnapshotCloneService";
+
+const char* kCreateFileAction = "CreateFile";
+const char* kDeleteFileAction = "DeleteFile";
 const char* kCreateSnapshotAction = "CreateSnapshot";
 const char* kDeleteSnapshotAction = "DeleteSnapshot";
 const char* kCancelSnapshotAction = "CancelSnapshot";
@@ -57,6 +60,10 @@ const char* kPoolset = "Poolset";
 const char* kStatusStr = "Status";
 const char* kTypeStr = "Type";
 const char* kInodeStr = "Inode";
+const char* kSizeStr = "Size";
+const char* kStripeUnitStr = "StripeUnit";
+const char* kStripeCountStr = "StripeCount";
+const char* kPoolSetStr = "PoolSet";
 
 const char* kCodeStr = "Code";
 const char* kMessageStr = "Message";

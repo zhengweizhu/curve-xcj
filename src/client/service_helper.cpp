@@ -94,6 +94,12 @@ void ServiceHelper::ProtoFileInfo2Local(const curve::mds::FileInfo& finfo,
         fi->poolset = finfo.poolset();
     }
 
+    if (finfo.has_version()) {
+        fi->version = finfo.version();
+    } else {
+        fi->version = 0;
+    }
+
     fEpoch->fileId = finfo.id();
     if (finfo.has_epoch()) {
         fEpoch->epoch = finfo.epoch();

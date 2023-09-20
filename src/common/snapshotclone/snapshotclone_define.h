@@ -32,6 +32,8 @@ namespace snapshotcloneserver {
 // snapshotcloneservice字符串常量定义
 extern const char* kServiceName;
 // action
+extern const char* kCreateFileAction;
+extern const char* kDeleteFileAction;
 extern const char* kCreateSnapshotAction;
 extern const char* kDeleteSnapshotAction;
 extern const char* kCancelSnapshotAction;
@@ -60,6 +62,10 @@ extern const char* kPoolset;
 extern const char* kStatusStr;
 extern const char* kTypeStr;
 extern const char* kInodeStr;
+extern const char* kSizeStr;
+extern const char* kStripeUnitStr;
+extern const char* kStripeCountStr;
+extern const char* kPoolSetStr;
 
 // json key
 extern const char* kCodeStr;

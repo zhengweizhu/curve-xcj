@@ -24,6 +24,7 @@
 
 using ::curve::client::LogicalPoolCopysetIDInfo;
 using ::curve::client::UserInfo;
+using ::curve::client::CreateFileContext;
 
 namespace curve {
 namespace snapshotcloneserver {
@@ -50,11 +51,11 @@ int CurveFsClientImpl::UnInit() {
 
 int CurveFsClientImpl::CreateSnapshot(const std::string &filename,
     const std::string &user,
-    uint64_t *seq) {
+    FInfo* snapInfo) {
     UserInfo userInfo = GetUserInfo(user);
-    RetryMethod method = [this, &filename, &userInfo, seq] () {
+    RetryMethod method = [this, &filename, &userInfo, snapInfo] () {
             return snapClient_->CreateSnapShot(filename,
-                userInfo, seq);
+                userInfo, snapInfo);
         };
     RetryCondition condition = [] (int ret) {
         return ret != LIBCURVE_ERROR::OK &&
@@ -388,6 +389,30 @@ int CurveFsClientImpl::Mkdir(const std::string& dirpath,
         clientMethodRetryIntervalMs_);
 }
 
+int CurveFsClientImpl::CreateFile(const std::string &file,
+    const std::string &user,
+    uint64_t size,
+    uint64_t stripeUnit,
+    uint64_t stripeCount,
+    const std::string &poolset) {
+    UserInfo userInfo = GetUserInfo(user);
+    CreateFileContext context;
+    context.pagefile = true;
+    context.name = file;
+    context.user = userInfo;
+    context.length = size;
+    context.stripeUnit = stripeUnit;
+    context.stripeCount = stripeCount;
+    context.poolset = poolset;
+    return fileClient_->Create2(context);
+}
+
+int CurveFsClientImpl::DeleteFile(const std::string &file,
+    const std::string &user) {
+    UserInfo userInfo = GetUserInfo(user);
+    return fileClient_->Unlink(file, userInfo);
+}
+
 int CurveFsClientImpl::ChangeOwner(const std::string& filename,
     const std::string& newOwner) {
     UserInfo userInfo(mdsRootUser_, mdsRootPassword_);
@@ -402,6 +427,34 @@ int CurveFsClientImpl::ChangeOwner(const std::string& filename,
     RetryHelper retryHelper(method, condition);
     return retryHelper.RetryTimeSecAndReturn(clientMethodRetryTimeSec_,
         clientMethodRetryIntervalMs_);
+}
+
+int CurveFsClientImpl::Clone(const std::string &snapPath,
+    const std::string &user,
+    const std::string &destination,
+    const std::string &poolset,
+    FInfo* finfo) {
+    UserInfo userInfo = GetUserInfo(user);
+    return snapClient_->Clone(snapPath, destination,
+            userInfo, poolset, finfo);
+}
+
+int CurveFsClientImpl::Flatten(const std::string &file,
+    const std::string &user) {
+    UserInfo userInfo = GetUserInfo(user);
+    return snapClient_->Flatten(file, userInfo);
+}
+
+int CurveFsClientImpl::ProtectSnapshot(const std::string &snapPath,
+    const std::string user) {
+    UserInfo userInfo = GetUserInfo(user);
+    return snapClient_->ProtectSnapShot(snapPath, userInfo);
+}
+
+int CurveFsClientImpl::UnprotectSnapshot(const std::string &snapPath,
+    const std::string user) {
+    UserInfo userInfo = GetUserInfo(user);
+    return snapClient_->UnprotectSnapShot(snapPath, userInfo);
 }
 
 }  // namespace snapshotcloneserver
